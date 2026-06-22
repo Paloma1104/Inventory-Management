@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Users, AlertTriangle, ArrowLeftRight, UserPlus, Plus, Eye, ScrollText } from 'lucide-react';
+import { Package, Users, AlertTriangle, ArrowLeftRight, UserPlus, Plus, Eye } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import PageHeader from '../components/PageHeader';
 import Badge from '../components/Badge';
@@ -52,13 +52,13 @@ export default function DashboardPage() {
               <p className="text-xs text-gray-500">Create new team member</p>
             </div>
           </Link>
-          <Link to="/inventory" className="card group flex items-center gap-4 transition hover:border-brand-300 hover:shadow-md">
+          <Link to="/products" className="card group flex items-center gap-4 transition hover:border-brand-300 hover:shadow-md">
             <div className="rounded-lg bg-green-50 p-3 text-green-600 transition group-hover:bg-green-100">
               <Plus className="h-5 w-5" />
             </div>
             <div>
               <p className="font-medium text-gray-900">Add Product</p>
-              <p className="text-xs text-gray-500">Add to inventory</p>
+              <p className="text-xs text-gray-500">Manage product catalog</p>
             </div>
           </Link>
           <Link to="/inventory" className="card group flex items-center gap-4 transition hover:border-brand-300 hover:shadow-md">
@@ -66,17 +66,17 @@ export default function DashboardPage() {
               <Eye className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-medium text-gray-900">View Inventory</p>
-              <p className="text-xs text-gray-500">Browse all products</p>
+              <p className="font-medium text-gray-900">Manage Inventory</p>
+              <p className="text-xs text-gray-500">Stock in and stock out</p>
             </div>
           </Link>
-          <Link to="/audit-logs" className="card group flex items-center gap-4 transition hover:border-brand-300 hover:shadow-md">
+          <Link to="/low-stock" className="card group flex items-center gap-4 transition hover:border-brand-300 hover:shadow-md">
             <div className="rounded-lg bg-amber-50 p-3 text-amber-600 transition group-hover:bg-amber-100">
-              <ScrollText className="h-5 w-5" />
+              <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-medium text-gray-900">View Audit Logs</p>
-              <p className="text-xs text-gray-500">Track all actions</p>
+              <p className="font-medium text-gray-900">Low Stock Alerts</p>
+              <p className="text-xs text-gray-500">Review stock warnings</p>
             </div>
           </Link>
         </div>

@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
+import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
 import { transactionsApi } from '../services/api';
 import type { Transaction } from '../types';
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   useEffect(() => {
     transactionsApi.list()
@@ -16,6 +19,15 @@ export default function TransactionsPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const searchFields = useCallback(
+    (t: Transaction) => [t.product_name, t.user_name, t.remarks, t.transaction_type],
+    [],
+  );
+
+  const filteredTransactions = useFilteredList(transactions, search, searchFields, [
+    { field: (t) => t.transaction_type, value: typeFilter },
+  ]);
 
   if (loading) {
     return (
@@ -27,16 +39,21 @@ export default function TransactionsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Transaction History"
-        description="All inventory stock movements and updates"
-      />
+      <PageHeader title="Transaction History" description="All inventory stock movements and updates" />
+
+      <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by product, user, or remarks...">
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input-field w-auto">
+          <option value="">All Types</option>
+          <option value="stock_in">Stock In</option>
+          <option value="stock_out">Stock Out</option>
+        </select>
+      </SearchFilterBar>
 
       <div className="card overflow-hidden !p-0">
-        {transactions.length === 0 ? (
+        {filteredTransactions.length === 0 ? (
           <EmptyState
             icon={<ArrowLeftRight className="h-8 w-8" />}
-            title="No transactions yet"
+            title={transactions.length === 0 ? 'No transactions yet' : 'No matching transactions'}
             description="Stock in/out operations will appear here."
           />
         ) : (
@@ -53,7 +70,7 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {transactions.map((txn) => (
+                {filteredTransactions.map((txn) => (
                   <tr key={txn.transaction_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">{txn.product_name}</td>
                     <td className="px-6 py-4"><Badge status={txn.transaction_type} /></td>

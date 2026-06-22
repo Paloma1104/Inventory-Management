@@ -1,63 +1,80 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { authApi } from '../services/api';
-import type { UserRole } from '../types';
 
 interface AuthContextType {
   token: string | null;
-  role: UserRole | null;
   name: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<UserRole>;
-  register: (data: { name: string; email: string; password: string; confirm_password: string }) => Promise<UserRole>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: { name: string; email: string; password: string; confirm_password: string }) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
-  const [role, setRole] = useState<UserRole | null>(() => localStorage.getItem('role') as UserRole | null);
-  const [name, setName] = useState<string | null>(() => localStorage.getItem('name'));
+function clearAuthStorage() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('role');
+  localStorage.removeItem('name');
+}
 
-  const persistAuth = useCallback((accessToken: string, userRole: UserRole, userName: string) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem('role');
+    const storedToken = localStorage.getItem('token');
+    if (storedRole === 'admin' && storedToken) {
+      setToken(storedToken);
+      setName(localStorage.getItem('name'));
+    } else if (storedToken) {
+      clearAuthStorage();
+    }
+    setReady(true);
+  }, []);
+
+  const persistAuth = useCallback((accessToken: string, userName: string) => {
     localStorage.setItem('token', accessToken);
-    localStorage.setItem('role', userRole);
+    localStorage.setItem('role', 'admin');
     localStorage.setItem('name', userName);
     setToken(accessToken);
-    setRole(userRole);
     setName(userName);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await authApi.login(email, password);
-    persistAuth(data.access_token, data.role, data.name);
-    return data.role;
+    if (data.role !== 'admin') {
+      throw new Error('Access Denied');
+    }
+    persistAuth(data.access_token, data.name);
   }, [persistAuth]);
 
   const register = useCallback(async (formData: { name: string; email: string; password: string; confirm_password: string }) => {
     const { data } = await authApi.register(formData);
-    persistAuth(data.access_token, data.role, data.name);
-    return data.role;
+    if (data.role !== 'admin') {
+      throw new Error('Access Denied');
+    }
+    persistAuth(data.access_token, data.name);
   }, [persistAuth]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('name');
+    clearAuthStorage();
     setToken(null);
-    setRole(null);
     setName(null);
   }, []);
+
+  if (!ready) return null;
 
   return (
     <AuthContext.Provider
       value={{
         token,
-        role,
         name,
         isAuthenticated: !!token,
-        isAdmin: role === 'admin',
+        isAdmin: !!token,
         login,
         register,
         logout,

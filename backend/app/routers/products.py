@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth import get_current_user, require_admin
+from app.dependencies.auth import require_admin
 from app.models import Category, Product, User
 from app.schemas import CategoryCreate, CategoryResponse, ProductCreate, ProductResponse, ProductUpdate
 from app.services.audit import create_audit_log
@@ -36,7 +36,7 @@ def _to_product_response(product: Product) -> ProductResponse:
 
 
 @router.get("/categories", response_model=list[CategoryResponse])
-def list_categories(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def list_categories(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     return db.query(Category).order_by(Category.category_name).all()
 
 
@@ -56,7 +56,7 @@ def create_category(
 
 
 @router.get("/products", response_model=list[ProductResponse])
-def list_products(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def list_products(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     products = db.query(Product).order_by(Product.product_name).all()
     return [_to_product_response(p) for p in products]
 
@@ -65,7 +65,7 @@ def list_products(db: Session = Depends(get_db), _: User = Depends(get_current_u
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
 ):
     product = db.query(Product).filter(Product.product_id == product_id).first()
     if not product:

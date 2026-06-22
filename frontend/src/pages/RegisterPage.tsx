@@ -24,11 +24,16 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const role = await register(form);
-      navigate(role === 'admin' ? '/dashboard' : '/inventory');
+      await register(form);
+      navigate('/dashboard');
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof message === 'string' ? message : 'Registration failed');
+      const axiosErr = err as { response?: { data?: { detail?: string }; status?: number }; message?: string };
+      if (axiosErr.message === 'Access Denied' || axiosErr.response?.status === 403) {
+        setError(typeof axiosErr.response?.data?.detail === 'string' ? axiosErr.response.data.detail : 'Access Denied');
+      } else {
+        const message = axiosErr.response?.data?.detail;
+        setError(typeof message === 'string' ? message : 'Registration failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -38,8 +43,8 @@ export default function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
-          <p className="mt-2 text-sm text-gray-500">Get started with Inventory today</p>
+          <h2 className="text-2xl font-bold text-gray-900">Create Admin Account</h2>
+          <p className="mt-2 text-sm text-gray-500">Initial setup for the administrator account</p>
         </div>
 
         <div className="card">

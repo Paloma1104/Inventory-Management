@@ -3,30 +3,31 @@ import {
   LayoutDashboard,
   Users,
   Package,
+  Boxes,
   ArrowLeftRight,
   ScrollText,
   BarChart3,
+  AlertTriangle,
+  Settings,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const adminNav = [
+const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/users', label: 'Users', icon: Users },
-  { to: '/inventory', label: 'Inventory', icon: Package },
+  { to: '/products', label: 'Products', icon: Package },
+  { to: '/inventory', label: 'Inventory', icon: Boxes },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { to: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-];
-
-const userNav = [
-  { to: '/inventory', label: 'Inventory', icon: Package },
+  { to: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
+  { to: '/low-stock', label: 'Low Stock Alerts', icon: AlertTriangle },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Layout() {
-  const { name, role, isAdmin, logout } = useAuth();
+  const { name, logout } = useAuth();
   const navigate = useNavigate();
-  const navItems = isAdmin ? adminNav : userNav;
 
   const handleLogout = () => {
     logout();
@@ -40,7 +41,7 @@ export default function Layout() {
           <span className="text-lg font-bold text-gray-900">Inventory</span>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -53,24 +54,24 @@ export default function Layout() {
                 }`
               }
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5 shrink-0" />
               {label}
             </NavLink>
           ))}
-        </nav>
-
-        <div className="border-t border-gray-200 p-4">
-          <div className="mb-3 px-3">
-            <p className="text-sm font-medium text-gray-900">{name}</p>
-            <p className="text-xs capitalize text-gray-500">{role}</p>
-          </div>
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
           >
-            <LogOut className="h-5 w-5" />
-            Sign out
+            <LogOut className="h-5 w-5 shrink-0" />
+            Logout
           </button>
+        </nav>
+
+        <div className="border-t border-gray-200 p-4">
+          <div className="px-3">
+            <p className="text-sm font-medium text-gray-900">{name}</p>
+            <p className="text-xs text-gray-500">Administrator</p>
+          </div>
         </div>
       </aside>
 

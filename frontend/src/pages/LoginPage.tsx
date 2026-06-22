@@ -17,11 +17,13 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const role = await login(email, password);
-      navigate(role === 'admin' ? '/dashboard' : '/inventory');
+      await login(email, password);
+      navigate('/dashboard');
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string | { msg: string }[] }; status?: number }; code?: string };
-      if (!axiosErr.response) {
+      const axiosErr = err as { response?: { data?: { detail?: string | { msg: string }[] }; status?: number }; message?: string };
+      if (axiosErr.message === 'Access Denied' || axiosErr.response?.status === 403) {
+        setError('Access Denied');
+      } else if (!axiosErr.response) {
         setError('Unable to connect to the server. Please try again later.');
       } else if (axiosErr.response.status === 401) {
         setError('Invalid email or password');
@@ -61,8 +63,8 @@ export default function LoginPage() {
             <span className="text-lg font-bold">Inventory</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
-          <p className="mt-2 text-sm text-gray-500">Sign in to your account to continue</p>
+          <h2 className="text-2xl font-bold text-gray-900">Admin Sign In</h2>
+          <p className="mt-2 text-sm text-gray-500">Sign in with your administrator account</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             {error && (

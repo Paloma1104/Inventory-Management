@@ -7,15 +7,18 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
+import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
 import TransactionsPage from './pages/TransactionsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import LowStockPage from './pages/LowStockPage';
+import SettingsPage from './pages/SettingsPage';
 
 function RootRedirect() {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <Navigate to={isAdmin ? '/dashboard' : '/inventory'} replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 export default function App() {
@@ -29,17 +32,15 @@ export default function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
-              <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/transactions" element={<TransactionsPage />} />
-            </Route>
-          </Route>
-
-          <Route element={<ProtectedRoute adminOnly />}>
-            <Route element={<Layout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/users" element={<UsersPage />} />
-              <Route path="/audit-logs" element={<AuditLogsPage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/inventory" element={<InventoryPage />} />
+              <Route path="/transactions" element={<TransactionsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/audit-logs" element={<AuditLogsPage />} />
+              <Route path="/low-stock" element={<LowStockPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
 

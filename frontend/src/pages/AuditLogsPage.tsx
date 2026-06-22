@@ -1,13 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { ScrollText } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
+import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
 import { auditLogsApi } from '../services/api';
 import type { AuditLog } from '../types';
+
+const ACTION_FILTERS = [
+  { value: '', label: 'All Activity' },
+  { value: 'user', label: 'User Activity' },
+  { value: 'product', label: 'Product Activity' },
+  { value: 'stock', label: 'Inventory Changes' },
+];
+
+function matchesActionFilter(log: AuditLog, filter: string): boolean {
+  if (!filter) return true;
+  if (filter === 'user') return log.action.includes('User');
+  if (filter === 'product') return ['Product Added', 'Product Updated', 'Product Deleted'].includes(log.action);
+  if (filter === 'stock') return log.action === 'Stock Updated';
+  return true;
+}
 
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
 
   useEffect(() => {
     auditLogsApi.list()
@@ -15,6 +33,17 @@ export default function AuditLogsPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const searchFields = useCallback(
+    (log: AuditLog) => [log.user_name, log.action, log.product_name || '', log.details],
+    [],
+  );
+
+  const searchedLogs = useFilteredList(logs, search, searchFields);
+  const filteredLogs = useMemo(
+    () => searchedLogs.filter((log) => matchesActionFilter(log, actionFilter)),
+    [searchedLogs, actionFilter],
+  );
 
   if (loading) {
     return (
@@ -26,16 +55,21 @@ export default function AuditLogsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Audit Logs"
-        description="Track all important system actions and changes"
-      />
+      <PageHeader title="Audit Logs" description="User activity, product changes, and inventory updates" />
+
+      <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search logs by user, action, or details...">
+        <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="input-field w-auto">
+          {ACTION_FILTERS.map((f) => (
+            <option key={f.value} value={f.value}>{f.label}</option>
+          ))}
+        </select>
+      </SearchFilterBar>
 
       <div className="card overflow-hidden !p-0">
-        {logs.length === 0 ? (
+        {filteredLogs.length === 0 ? (
           <EmptyState
             icon={<ScrollText className="h-8 w-8" />}
-            title="No audit logs yet"
+            title={logs.length === 0 ? 'No audit logs yet' : 'No matching logs'}
             description="System actions will be recorded here automatically."
           />
         ) : (
@@ -51,7 +85,7 @@ export default function AuditLogsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <tr key={log.log_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">{log.user_name}</td>
                     <td className="px-6 py-4">

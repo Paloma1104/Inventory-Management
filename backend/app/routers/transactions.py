@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth import get_current_user, require_admin
+from app.dependencies.auth import require_admin
 from app.models import InventoryTransaction, Product, TransactionType, User
 from app.schemas import TransactionCreate, TransactionResponse
 from app.services.audit import create_audit_log
@@ -27,7 +27,7 @@ def _to_transaction_response(txn: InventoryTransaction) -> TransactionResponse:
 @router.get("/", response_model=list[TransactionResponse])
 def list_transactions(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
 ):
     transactions = (
         db.query(InventoryTransaction)

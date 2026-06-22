@@ -14,17 +14,20 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
     if data.password != data.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
+    if db.query(User).count() > 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Registration is disabled. Contact an administrator.",
+        )
+
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-
-    user_count = db.query(User).count()
-    role = UserRole.ADMIN if user_count == 0 else UserRole.USER
 
     user = User(
         name=data.name,
         email=data.email,
         password_hash=get_password_hash(data.password),
-        role=role,
+        role=UserRole.ADMIN,
     )
     db.add(user)
     db.commit()
@@ -41,6 +44,8 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if user.status != "active":
         raise HTTPException(status_code=403, detail="Account is inactive")
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Access Denied")
 
     token = create_access_token({"sub": str(user.user_id), "role": user.role.value})
     return Token(access_token=token, role=user.role, name=user.name)
