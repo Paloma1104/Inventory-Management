@@ -3,8 +3,13 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     background-color: #F5F7FA;
+    color: #17203C;
   }
 }
 
@@ -79,5 +84,49 @@
 
   .quick-action-card {
     @apply card flex items-center gap-4 transition hover:border-primary/30 hover:shadow-elevated;
+  }
+
+  .landing-shell {
+    background-image:
+      radial-gradient(circle at top left, rgba(31, 97, 185, 0.08), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(113, 156, 174, 0.1), transparent 24%);
+  }
+
+  .landing-grid {
+    background-image:
+      linear-gradient(rgba(113, 156, 174, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(113, 156, 174, 0.08) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 88%);
+  }
+
+  .landing-orb {
+    @apply absolute rounded-full blur-3xl;
+  }
+
+  .landing-panel {
+    box-shadow:
+      0 24px 64px rgba(4, 10, 24, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .landing-fade-up {
+    animation: landing-fade-up 0.8s ease-out both;
+  }
+
+  .landing-fade-up-delay {
+    animation-delay: 0.14s;
+  }
+}
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
