@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import logo from '../assets/blucursor-logo.png';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -44,8 +45,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen">
       <div className="hidden w-1/2 bg-gradient-to-br from-navy via-primary to-primary-dark lg:flex lg:flex-col lg:justify-center lg:p-12">
-        <div>
-          <span className="text-xl font-bold text-white">Inventory</span>
+        <div className="flex items-center gap-3">
+          <img src={logo} alt="BluCursor logo" className="h-10 w-10 rounded-full object-cover shadow-lg shadow-white/10" />
+          <span className="text-xl font-bold text-white tracking-[0.04em]">BluCursor Inventory</span>
         </div>
         <div className="mt-12">
           <h1 className="text-4xl font-bold leading-tight text-white">
@@ -59,8 +61,9 @@ export default function LoginPage() {
 
       <div className="flex w-full flex-col justify-center bg-surface-muted px-6 py-12 lg:w-1/2 lg:px-16">
         <div className="mx-auto w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
-            <span className="text-lg font-bold text-navy">Inventory</span>
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <img src={logo} alt="BluCursor logo" className="h-8 w-8 rounded-full object-cover shadow-md shadow-primary/10" />
+            <span className="text-lg font-bold text-navy tracking-[0.04em]">BluCursor Inventory</span>
           </div>
 
           <h2 className="text-2xl font-bold text-navy">Sign In</h2>

@@ -12,6 +12,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import logo from '../assets/blucursor-logo.png';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -37,8 +38,9 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-surface-muted">
       <aside className="flex w-64 flex-col bg-navy shadow-elevated">
-        <div className="flex h-16 items-center border-b border-white/10 px-6">
-          <span className="text-lg font-bold text-white">Inventory</span>
+        <div className="flex h-16 items-center gap-2.5 border-b border-white/10 px-6">
+          <img src={logo} alt="BluCursor logo" className="h-8 w-8 rounded-full object-cover" />
+          <span className="text-lg font-bold text-white tracking-[0.04em]">BluCursor Inventory</span>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">

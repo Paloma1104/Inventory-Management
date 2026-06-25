@@ -8,6 +8,7 @@ import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar'
 import { productsApi, categoriesApi, transactionsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Product, Category } from '../types';
+import logo from '../assets/blucursor-logo.png';
 
 export default function InventoryPage() {
   const { isAdmin } = useAuth();
@@ -85,7 +86,12 @@ export default function InventoryPage() {
   return (
     <div>
       <PageHeader
-        title="Inventory"
+        title={
+          <div className="flex items-center gap-2.5">
+            <img src={logo} alt="BluCursor logo" className="h-8 w-8 rounded-full object-cover" />
+            <span>BluCursor Inventory</span>
+          </div>
+        }
         description="Manage stock levels with stock in and stock out operations"
       />
 

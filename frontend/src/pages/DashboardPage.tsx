@@ -7,6 +7,7 @@ import Badge from '../components/Badge';
 import { dashboardApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { DashboardStats } from '../types';
+import logo from '../assets/blucursor-logo.png';
 
 export default function DashboardPage() {
   const { isAdmin } = useAuth();
@@ -37,7 +38,12 @@ export default function DashboardPage() {
     return (
       <div>
         <PageHeader
-          title="User Dashboard"
+          title={
+            <div className="flex items-center gap-2.5">
+              <img src={logo} alt="BluCursor logo" className="h-8 w-8 rounded-full object-cover" />
+              <span>BluCursor Inventory User Dashboard</span>
+            </div>
+          }
           description="View inventory availability and search for items"
         />
 
@@ -76,7 +82,15 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" description="Overview of your inventory management system" />
+      <PageHeader
+        title={
+          <div className="flex items-center gap-2.5">
+            <img src={logo} alt="BluCursor logo" className="h-8 w-8 rounded-full object-cover" />
+            <span>BluCursor Inventory Dashboard</span>
+          </div>
+        }
+        description="Overview of your inventory management system"
+      />
 
       <div className="mb-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Products" value={stats?.total_products ?? 0} icon={Package} color="primary" />
