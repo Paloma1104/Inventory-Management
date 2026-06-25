@@ -6,9 +6,11 @@ import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
 import { productsApi, categoriesApi, transactionsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import type { Product, Category } from '../types';
 
 export default function InventoryPage() {
+  const { isAdmin } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,7 +122,7 @@ export default function InventoryPage() {
                   <th className="px-6 py-3">Quantity</th>
                   <th className="px-6 py-3">Min Level</th>
                   <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  {isAdmin && <th className="px-6 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
@@ -132,16 +134,18 @@ export default function InventoryPage() {
                     <td className="px-6 py-4 font-medium text-navy">{product.current_quantity}</td>
                     <td className="px-6 py-4 text-navy-secondary">{product.minimum_stock_level}</td>
                     <td className="px-6 py-4"><Badge status={product.status || 'in_stock'} /></td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openStock(product, 'stock_in')} title="Stock In" className="icon-btn">
-                          <ArrowDownToLine className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => openStock(product, 'stock_out')} title="Stock Out" className="icon-btn-warning">
-                          <ArrowUpFromLine className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openStock(product, 'stock_in')} title="Stock In" className="icon-btn">
+                            <ArrowDownToLine className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => openStock(product, 'stock_out')} title="Stock Out" className="icon-btn-warning">
+                            <ArrowUpFromLine className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

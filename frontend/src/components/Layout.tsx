@@ -15,18 +15,18 @@ import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/users', label: 'Users', icon: Users },
-  { to: '/products', label: 'Products', icon: Package },
-  { to: '/inventory', label: 'Inventory', icon: Boxes },
-  { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
-  { to: '/low-stock', label: 'Low Stock Alerts', icon: AlertTriangle },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/users', label: 'Users', icon: Users, adminOnly: true },
+  { to: '/products', label: 'Products', icon: Package, adminOnly: true },
+  { to: '/inventory', label: 'Inventory', userLabel: 'View Inventory', icon: Boxes },
+  { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, adminOnly: true },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3, adminOnly: true },
+  { to: '/audit-logs', label: 'Audit Logs', icon: ScrollText, adminOnly: true },
+  { to: '/low-stock', label: 'Low Stock Alerts', icon: AlertTriangle, adminOnly: true },
+  { to: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
 export default function Layout() {
-  const { name, logout } = useAuth();
+  const { name, role, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -42,7 +42,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.filter((item) => isAdmin || !item.adminOnly).map(({ to, label, userLabel, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -55,7 +55,7 @@ export default function Layout() {
               }
             >
               <Icon className="h-5 w-5 shrink-0" />
-              {label}
+              {!isAdmin && userLabel ? userLabel : label}
             </NavLink>
           ))}
           <button
@@ -70,7 +70,7 @@ export default function Layout() {
         <div className="border-t border-white/10 p-4">
           <div className="px-3">
             <p className="text-sm font-medium text-white">{name}</p>
-            <p className="text-xs text-white/50">Administrator</p>
+            <p className="text-xs text-white/50">{role === 'admin' ? 'Administrator' : 'User'}</p>
           </div>
         </div>
       </aside>

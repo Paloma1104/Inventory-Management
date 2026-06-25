@@ -43,8 +43,8 @@ export default function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-6 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-navy">Create Admin Account</h2>
-          <p className="mt-2 text-sm text-navy-secondary">Initial setup for the administrator account</p>
+          <h2 className="text-2xl font-bold text-navy">Create Account</h2>
+          <p className="mt-2 text-sm text-navy-secondary">Initial setup for the first account</p>
         </div>
 
         <div className="card">

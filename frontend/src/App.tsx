@@ -35,14 +35,16 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/users" element={<UsersPage />} />
-              <Route path="/products" element={<ProductsPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/transactions" element={<TransactionsPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/audit-logs" element={<AuditLogsPage />} />
-              <Route path="/low-stock" element={<LowStockPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route element={<ProtectedRoute adminOnly />}>
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/products" element={<ProductsPage />} />
+                <Route path="/transactions" element={<TransactionsPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/audit-logs" element={<AuditLogsPage />} />
+                <Route path="/low-stock" element={<LowStockPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
             </Route>
           </Route>
 

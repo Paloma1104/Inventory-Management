@@ -6,6 +6,7 @@ import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
 import { productsApi, categoriesApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import type { Product, Category } from '../types';
 
 const emptyProduct = {
@@ -19,6 +20,7 @@ const emptyProduct = {
 };
 
 export default function ProductsPage() {
+  const { isAdmin } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,12 +128,12 @@ export default function ProductsPage() {
       <PageHeader
         title="Products"
         description="Manage product catalog, details, and specifications"
-        actions={
+        actions={isAdmin ? (
           <button onClick={openCreate} className="btn-primary">
             <Plus className="h-4 w-4" />
             Add Product
           </button>
-        }
+        ) : undefined}
       />
 
       <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by name, SKU, or description...">
@@ -155,7 +157,7 @@ export default function ProductsPage() {
             icon={<Package className="h-8 w-8" />}
             title={products.length === 0 ? 'No products yet' : 'No matching products'}
             description={products.length === 0 ? 'Add your first product to get started.' : 'Try adjusting your search or filters.'}
-            action={products.length === 0 ? <button onClick={openCreate} className="btn-primary">Add Product</button> : undefined}
+            action={isAdmin && products.length === 0 ? <button onClick={openCreate} className="btn-primary">Add Product</button> : undefined}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -185,12 +187,16 @@ export default function ProductsPage() {
                         <button onClick={() => openDetails(product)} title="View Details" className="icon-btn">
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button onClick={() => openEdit(product)} className="icon-btn">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => handleDelete(product)} className="icon-btn-warning">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {isAdmin && (
+                          <>
+                            <button onClick={() => openEdit(product)} className="icon-btn">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => handleDelete(product)} className="icon-btn-warning">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

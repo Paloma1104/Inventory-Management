@@ -44,8 +44,5 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if user.status != "active":
         raise HTTPException(status_code=403, detail="Account is inactive")
-    if user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Access Denied")
-
     token = create_access_token({"sub": str(user.user_id), "role": user.role.value})
     return Token(access_token=token, role=user.role, name=user.name)

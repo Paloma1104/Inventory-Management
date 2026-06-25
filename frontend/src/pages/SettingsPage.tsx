@@ -2,7 +2,7 @@ import PageHeader from '../components/PageHeader';
 import { useAuth } from '../context/AuthContext';
 
 export default function SettingsPage() {
-  const { name } = useAuth();
+  const { name, role } = useAuth();
 
   return (
     <div>
@@ -18,7 +18,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-navy-secondary">Role</p>
-              <p className="mt-1 text-sm text-navy">Administrator</p>
+              <p className="mt-1 text-sm text-navy">{role === 'admin' ? 'Administrator' : 'User'}</p>
             </div>
           </div>
         </div>
@@ -32,7 +32,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-navy-secondary">Module</p>
-              <p className="mt-1 text-sm text-navy">Admin Portal</p>
+              <p className="mt-1 text-sm text-navy">Inventory Portal</p>
             </div>
           </div>
         </div>
