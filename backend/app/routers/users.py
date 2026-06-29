@@ -16,30 +16,46 @@ def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    return db.query(User).order_by(User.created_at.desc()).all()
+    return db.query(User).filter(User.status == "active").order_by(User.created_at.desc()).all()
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(
-    data: UserCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(status_code=400, detail="Email already exists")
+def create_user(data: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    existing_user = db.query(User).filter(User.email == data.email).first()
+    
+    if existing_user:
+        if existing_user.status == "active":
+            raise HTTPException(status_code=400, detail="Email already exists and account is active")
+        
+        existing_user.name = data.name
+        existing_user.password_hash = get_password_hash(data.password)
+        existing_user.role = data.role
+        existing_user.status = "active"
+        
+        create_audit_log(
+            db, 
+            current_user.user_id, 
+            "User Reactivated", 
+            f"Reactivated existing inactive account for '{data.name}' ({data.email}) with role {data.role.value}"
+        )
+        db.commit()
+        db.refresh(existing_user)
+        return existing_user
 
     user = User(
         name=data.name,
         email=data.email,
         password_hash=get_password_hash(data.password),
         role=data.role,
+        status="active"
     )
     db.add(user)
+    
     create_audit_log(
-        db,
-        current_user.user_id,
-        "User Created",
-        f"Created user '{data.name}' with role {data.role.value}",
+        db, 
+        current_user.user_id, 
+        "User Created", 
+        f"Created a brand new user '{data.name}' with role {data.role.value}"
     )
     db.commit()
     db.refresh(user)
@@ -91,12 +107,14 @@ def delete_user(
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    user.status = "inactive"
 
     create_audit_log(
         db,
         current_user.user_id,
-        "User Deleted",
-        f"Deleted user '{user.name}' ({user.email})",
+        "User Deactivated",
+        f"Soft-deleted/Deactivated user '{user.name}' ({user.email})"
     )
-    db.delete(user)
     db.commit()
+    return None
