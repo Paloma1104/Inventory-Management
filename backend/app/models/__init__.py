@@ -30,6 +30,7 @@ class User(Base):
 
     transactions = relationship("InventoryTransaction", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
+    product_requests = relationship("ProductRequest", back_populates="user")
 
 
 class Category(Base):
@@ -58,6 +59,7 @@ class Product(Base):
     category = relationship("Category", back_populates="products")
     transactions = relationship("InventoryTransaction", back_populates="product")
     audit_logs = relationship("AuditLog", back_populates="product")
+    requests = relationship("ProductRequest", back_populates="product")
 
 
 class InventoryTransaction(Base):
@@ -87,3 +89,23 @@ class AuditLog(Base):
 
     user = relationship("User", back_populates="audit_logs")
     product = relationship("Product", back_populates="audit_logs")
+
+
+class ProductRequest(Base):
+    __tablename__ = "product_requests"
+
+    request_id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.product_id"), nullable=True)
+    product_name = Column(String(200), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.category_id"), nullable=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    status = Column(String(20), default="pending", nullable=False)
+    remarks = Column(Text, default="", nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="product_requests")
+    product = relationship("Product", back_populates="requests")
+    category = relationship("Category")
+

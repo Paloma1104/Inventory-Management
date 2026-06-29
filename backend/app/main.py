@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import get_database_url_display, init_db, is_database_available
-from app.routers import audit_logs, auth, dashboard, products, transactions, users
+from app.routers import audit_logs, auth, dashboard, product_requests, products, transactions, users
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ app.include_router(products.router, prefix="/api")
 app.include_router(transactions.router, prefix="/api")
 app.include_router(audit_logs.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(product_requests.router, prefix="/api")
 
 
 @app.get("/api/health")

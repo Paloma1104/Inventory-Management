@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Boxes, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Boxes, ArrowDownToLine, ArrowUpFromLine, Plus } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
-import { productsApi, categoriesApi, transactionsApi } from '../services/api';
+import { productsApi, categoriesApi, transactionsApi, productRequestsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Product, Category } from '../types';
 import logo from '../assets/blucursor-logo.png';
@@ -23,6 +23,51 @@ export default function InventoryPage() {
   const [stockForm, setStockForm] = useState({ transaction_type: 'stock_in', quantity: 1, remarks: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestProduct, setRequestProduct] = useState<Product | null>(null);
+  const [requestForm, setRequestForm] = useState({ product_name: '', category_id: '', quantity: 1, remarks: '' });
+
+  const openRequestModal = (product: Product | null) => {
+    setRequestProduct(product);
+    if (product) {
+      setRequestForm({
+        product_name: product.product_name,
+        category_id: String(product.category_id),
+        quantity: 1,
+        remarks: '',
+      });
+    } else {
+      setRequestForm({
+        product_name: '',
+        category_id: '',
+        quantity: 1,
+        remarks: '',
+      });
+    }
+    setError('');
+    setShowRequestModal(true);
+  };
+
+  const handleRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await productRequestsApi.create({
+        product_id: requestProduct ? requestProduct.product_id : undefined,
+        product_name: requestForm.product_name,
+        category_id: requestForm.category_id ? Number(requestForm.category_id) : undefined,
+        quantity: requestForm.quantity,
+        remarks: requestForm.remarks,
+      });
+      setShowRequestModal(false);
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(typeof message === 'string' ? message : 'Failed to submit product request');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const fetchData = () => {
     Promise.all([productsApi.list(), categoriesApi.list()])
@@ -108,6 +153,11 @@ export default function InventoryPage() {
           <option value="low_stock">Low Stock</option>
           <option value="out_of_stock">Out of Stock</option>
         </select>
+        {!isAdmin && (
+          <button onClick={() => openRequestModal(null)} className="btn-primary flex items-center gap-1.5 py-2 px-4 text-sm font-medium">
+            <Plus className="h-4 w-4" /> Request Product
+          </button>
+        )}
       </SearchFilterBar>
 
       <div className="card overflow-hidden !p-0">
@@ -121,14 +171,14 @@ export default function InventoryPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="table-header border-b border-surface-border">
-                <tr className="text-xs font-medium uppercase tracking-wider text-navy-secondary">
+                <tr className="text-xs font-semibold uppercase tracking-wider text-navy-secondary">
                   <th className="px-6 py-3">Product Name</th>
                   <th className="px-6 py-3">Category</th>
                   <th className="px-6 py-3">SKU</th>
                   <th className="px-6 py-3">Quantity</th>
                   <th className="px-6 py-3">Min Level</th>
                   <th className="px-6 py-3">Status</th>
-                  {isAdmin && <th className="px-6 py-3 text-right">Actions</th>}
+                  <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
@@ -140,8 +190,8 @@ export default function InventoryPage() {
                     <td className="px-6 py-4 font-medium text-navy">{product.current_quantity}</td>
                     <td className="px-6 py-4 text-navy-secondary">{product.minimum_stock_level}</td>
                     <td className="px-6 py-4"><Badge status={product.status || 'in_stock'} /></td>
-                    {isAdmin && (
-                      <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right">
+                      {isAdmin ? (
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openStock(product, 'stock_in')} title="Stock In" className="icon-btn">
                             <ArrowDownToLine className="h-4 w-4" />
@@ -150,8 +200,16 @@ export default function InventoryPage() {
                             <ArrowUpFromLine className="h-4 w-4" />
                           </button>
                         </div>
-                      </td>
-                    )}
+                      ) : (
+                        (product.status === 'low_stock' || product.status === 'out_of_stock') ? (
+                          <button onClick={() => openRequestModal(product)} className="btn-secondary py-1 px-3 text-xs" title="Request Restock">
+                            Request Restock
+                          </button>
+                        ) : (
+                          <span className="text-xs text-navy-secondary/60">-</span>
+                        )
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -178,6 +236,63 @@ export default function InventoryPage() {
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setShowStockModal(false)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={submitting} className="btn-primary">{submitting ? 'Processing...' : 'Confirm'}</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={showRequestModal} onClose={() => setShowRequestModal(false)} title={requestProduct ? 'Request Restock' : 'Request New Product'}>
+        <form onSubmit={handleRequestSubmit} className="space-y-4">
+          {error && <div className="alert-error">{error}</div>}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Product Name</label>
+            <input
+              required
+              type="text"
+              disabled={!!requestProduct}
+              value={requestForm.product_name}
+              onChange={(e) => setRequestForm({ ...requestForm, product_name: e.target.value })}
+              className="input-field disabled:bg-surface-muted disabled:text-navy-secondary"
+              placeholder="e.g. Acme Widgets"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Category</label>
+            <select
+              disabled={!!requestProduct}
+              value={requestForm.category_id}
+              onChange={(e) => setRequestForm({ ...requestForm, category_id: e.target.value })}
+              className="input-field disabled:bg-surface-muted disabled:text-navy-secondary"
+            >
+              <option value="">Select Category (Optional)</option>
+              {categories.map((cat) => (
+                <option key={cat.category_id} value={cat.category_id}>{cat.category_name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Quantity Requested</label>
+            <input
+              required
+              type="number"
+              min="1"
+              value={requestForm.quantity}
+              onChange={(e) => setRequestForm({ ...requestForm, quantity: Number(e.target.value) })}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Remarks / Reason</label>
+            <textarea
+              rows={2}
+              value={requestForm.remarks}
+              onChange={(e) => setRequestForm({ ...requestForm, remarks: e.target.value })}
+              className="input-field"
+              placeholder="Why is this requested? e.g. High demand project"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setShowRequestModal(false)} className="btn-secondary">Cancel</button>
+            <button type="submit" disabled={submitting} className="btn-primary">{submitting ? 'Submitting...' : 'Submit Request'}</button>
           </div>
         </form>
       </Modal>

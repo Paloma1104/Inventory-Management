@@ -8,6 +8,7 @@ import type {
   Product,
   Transaction,
   User,
+  ProductRequest,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -87,4 +88,18 @@ export const dashboardApi = {
   analytics: () => api.get<Analytics>('/dashboard/analytics'),
 };
 
+export const productRequestsApi = {
+  list: () => api.get<ProductRequest[]>('/product-requests'),
+  create: (data: {
+    product_id?: number;
+    product_name: string;
+    category_id?: number;
+    quantity: number;
+    remarks?: string;
+  }) => api.post<ProductRequest>('/product-requests', data),
+  update: (id: number, data: { status: 'approved' | 'rejected'; remarks?: string }) =>
+    api.put<ProductRequest>(`/product-requests/${id}`, data),
+};
+
 export default api;
+

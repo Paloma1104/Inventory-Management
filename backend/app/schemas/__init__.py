@@ -173,3 +173,36 @@ class AnalyticsResponse(BaseModel):
     monthly_changes: list[MonthlyChange]
     low_stock_products: list[ProductResponse]
     recent_activity: list[AuditLogResponse]
+
+
+# Product Requests
+class ProductRequestCreate(BaseModel):
+    product_id: Optional[int] = None
+    product_name: str = Field(..., min_length=1, max_length=200)
+    category_id: Optional[int] = None
+    quantity: int = Field(1, ge=1)
+    remarks: Optional[str] = ""
+
+
+class ProductRequestUpdate(BaseModel):
+    status: str = Field(..., description="approved or rejected")
+    remarks: Optional[str] = None
+
+
+class ProductRequestResponse(BaseModel):
+    request_id: int
+    product_id: Optional[int] = None
+    product_name: str
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
+    quantity: int
+    user_id: int
+    user_name: str
+    status: str
+    remarks: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

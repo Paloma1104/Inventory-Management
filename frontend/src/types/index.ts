@@ -84,3 +84,19 @@ export interface AuthResponse {
   role: UserRole;
   name: string;
 }
+
+export interface ProductRequest {
+  request_id: number;
+  product_id?: number;
+  product_name: string;
+  category_id?: number;
+  category_name?: string;
+  quantity: number;
+  user_id: number;
+  user_name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  remarks: string;
+  created_at: string;
+  updated_at: string;
+}
+

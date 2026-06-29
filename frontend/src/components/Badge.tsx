@@ -13,6 +13,9 @@ const statusStyles: Record<string, string> = {
   user: 'bg-surface-muted text-navy-secondary ring-navy-secondary/20',
   stock_in: 'bg-primary-light text-primary ring-primary/20',
   stock_out: 'bg-accent-light text-accent ring-accent/30',
+  pending: 'bg-yellow-100 text-yellow-800 ring-yellow-600/20',
+  approved: 'bg-primary-light text-primary ring-primary/20',
+  rejected: 'bg-red-100 text-red-700 ring-red-600/10',
 };
 
 const statusLabels: Record<string, string> = {
@@ -25,6 +28,9 @@ const statusLabels: Record<string, string> = {
   user: 'User',
   active: 'Active',
   inactive: 'Inactive',
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
 };
 
 export default function Badge({ status, label }: BadgeProps) {
