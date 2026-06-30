@@ -206,3 +206,15 @@ class ProductRequestResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class StockRunwayPrediction(BaseModel):
+    product_id: int
+    product_name: str
+    current_stock: int
+    predicted_30_day_demand: int
+    stock_runway_status: str
+
+    class Config:
+        from_attributes = True
+
+

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -29,6 +30,7 @@ const navItems = [
 export default function Layout() {
   const { name, role, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -36,14 +38,19 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-surface-muted">
-      {/* Sidebar Spacer to prevent layout shift of main content when sidebar expands */}
-      <div className="w-20 shrink-0 transition-all duration-300 ease-in-out" />
-
-      <aside className="fixed left-0 top-0 bottom-0 z-40 flex w-20 hover:w-64 flex-col bg-navy shadow-elevated transition-all duration-300 ease-in-out group overflow-x-hidden">
+    <div className="flex min-h-screen bg-[#F7FAFC]">
+      <aside
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`fixed left-0 top-0 h-full bg-[#002B49] z-40 transition-all duration-300 ease-in-out ${
+          isHovered ? 'w-64' : 'w-20'
+        } flex flex-col shadow-elevated group overflow-x-hidden`}
+      >
         <div className="flex h-16 items-center justify-center group-hover:justify-start gap-3 border-b border-white/10 px-4 group-hover:px-6 transition-all duration-300 overflow-hidden shrink-0">
           <img src={logo} alt="BluCursor logo" className="h-8 w-8 rounded-full object-cover shrink-0" />
-          <span className="text-lg font-bold text-white tracking-[0.04em] opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
+          <span className={`text-lg font-bold text-white tracking-[0.04em] transition-opacity duration-200 whitespace-nowrap overflow-hidden ${
+            isHovered ? 'opacity-100' : 'opacity-0'
+          }`}>
             BluCursor Inventory
           </span>
         </div>
@@ -62,7 +69,9 @@ export default function Layout() {
               }
             >
               <Icon className="h-5 w-5 shrink-0" />
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
+              <span className={`transition-opacity duration-200 whitespace-nowrap overflow-hidden ${
+                isHovered ? 'opacity-100' : 'opacity-0'
+              }`}>
                 {!isAdmin && userLabel ? userLabel : label}
               </span>
             </NavLink>
@@ -72,7 +81,9 @@ export default function Layout() {
             className="flex w-full items-center justify-center group-hover:justify-start gap-0 group-hover:gap-3 rounded-lg px-3.5 group-hover:px-3 py-2.5 text-sm font-medium text-white/70 transition-all duration-300 hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-5 w-5 shrink-0" />
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
+            <span className={`transition-opacity duration-200 whitespace-nowrap overflow-hidden ${
+              isHovered ? 'opacity-100' : 'opacity-0'
+            }`}>
               Logout
             </span>
           </button>
@@ -83,7 +94,9 @@ export default function Layout() {
             <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white font-semibold shrink-0 border border-white/20">
               {name ? name.charAt(0).toUpperCase() : 'U'}
             </div>
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
+            <div className={`transition-opacity duration-200 whitespace-nowrap overflow-hidden ${
+              isHovered ? 'opacity-100' : 'opacity-0'
+            }`}>
               <p className="text-sm font-medium text-white leading-tight">{name}</p>
               <p className="text-xs text-white/50">{role === 'admin' ? 'Administrator' : 'User'}</p>
             </div>
@@ -91,10 +104,10 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <Outlet />
-        </div>
+      <main className={`flex-1 min-h-screen bg-[#F7FAFC] p-8 transition-all duration-300 ease-in-out ${
+        isHovered ? 'pl-72' : 'pl-28'
+      }`}>
+        <Outlet />
       </main>
     </div>
   );

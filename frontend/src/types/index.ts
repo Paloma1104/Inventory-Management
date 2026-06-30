@@ -100,3 +100,12 @@ export interface ProductRequest {
   updated_at: string;
 }
 
+export interface StockRunwayPrediction {
+  product_id: number;
+  product_name: string;
+  current_stock: number;
+  predicted_30_day_demand: number;
+  stock_runway_status: string;
+}
+
+

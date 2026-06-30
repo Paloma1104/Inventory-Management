@@ -5,17 +5,24 @@ import {
 } from 'recharts';
 import PageHeader from '../components/PageHeader';
 import Badge from '../components/Badge';
-import { dashboardApi } from '../services/api';
+import { dashboardApi, aiApi } from '../services/api';
 import { colors } from '../theme/colors';
-import type { Analytics } from '../types';
+import type { Analytics, StockRunwayPrediction } from '../types';
 
 export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [predictions, setPredictions] = useState<StockRunwayPrediction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    dashboardApi.analytics()
-      .then(({ data }) => setAnalytics(data))
+    Promise.all([
+      dashboardApi.analytics(),
+      aiApi.getPredictions(),
+    ])
+      .then(([{ data: analyticsData }, { data: predictionsData }]) => {
+        setAnalytics(analyticsData);
+        setPredictions(predictionsData);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -105,28 +112,44 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        <div className="card">
-          <h3 className="mb-4 text-lg font-semibold text-navy">Recent Activity</h3>
-          {analytics?.recent_activity && analytics.recent_activity.length > 0 ? (
-            <div className="space-y-3">
-              {analytics.recent_activity.map((log) => (
-                <div key={log.log_id} className="rounded-lg border border-surface-border p-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-navy">{log.action}</p>
-                      <p className="mt-0.5 text-xs text-navy-secondary">{log.details}</p>
-                    </div>
-                    <span className="whitespace-nowrap text-xs text-navy-secondary/70">
-                      {new Date(log.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-navy-secondary/70">by {log.user_name}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-navy-secondary">No recent activity</p>
-          )}
+        <div className="card overflow-hidden">
+          <div className="border-b border-surface-border pb-4 mb-4">
+            <h3 className="text-base font-bold text-[#002B49]">Predictive Stock Runways</h3>
+            <p className="text-xs text-[#4A5568] mt-0.5">
+              30-day product velocity forecasting derived from historical consumption trends.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[#F7FAFC] text-xs font-medium uppercase tracking-wider text-navy-secondary border-b border-surface-border">
+                <tr>
+                  <th className="px-4 py-3">Product Name</th>
+                  <th className="px-4 py-3 text-center">Current Stock</th>
+                  <th className="px-4 py-3 text-center">Projected 30-Day Demand</th>
+                  <th className="px-4 py-3 text-right">Runway Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border text-navy">
+                {predictions.map((item) => (
+                  <tr key={item.product_id} className="hover:bg-[#F7FAFC] transition-colors">
+                    <td className="px-4 py-3.5 font-medium text-[#002B49]">{item.product_name}</td>
+                    <td className="px-4 py-3.5 text-center font-semibold">{item.current_stock} units</td>
+                    <td className="px-4 py-3.5 text-center text-[#4A5568]">{item.predicted_30_day_demand} units</td>
+                    <td className="px-4 py-3.5 text-right">
+                      <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+                        item.stock_runway_status.includes('RISK')
+                          ? 'bg-red-50 text-red-700 border-red-200'
+                          : 'bg-green-50 text-green-700 border-green-200'
+                      }`}>
+                        {item.stock_runway_status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

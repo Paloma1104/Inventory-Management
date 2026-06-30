@@ -9,6 +9,7 @@ import type {
   Transaction,
   User,
   ProductRequest,
+  StockRunwayPrediction,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -99,6 +100,10 @@ export const productRequestsApi = {
   }) => api.post<ProductRequest>('/product-requests', data),
   update: (id: number, data: { status: 'approved' | 'rejected'; remarks?: string }) =>
     api.put<ProductRequest>(`/product-requests/${id}`, data),
+};
+
+export const aiApi = {
+  getPredictions: () => api.get<StockRunwayPrediction[]>('/ai/all-predictions'),
 };
 
 export default api;
