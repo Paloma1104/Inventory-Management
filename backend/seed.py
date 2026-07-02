@@ -4,7 +4,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.database import SessionLocal, engine, Base
+from app.database import SessionLocal, init_db
 from app.models import AuditLog, Category, InventoryTransaction, Product, User, UserRole
 from app.utils.auth import get_password_hash
 
@@ -132,7 +132,12 @@ def seed_inventory(db):
 
 
 def seed(reset_admin: bool = False, reseed_inventory: bool = False):
-    Base.metadata.create_all(bind=engine)
+    try:
+        init_db()
+    except RuntimeError as exc:
+        print(exc)
+        raise SystemExit(1) from exc
+
     db = SessionLocal()
 
     try:

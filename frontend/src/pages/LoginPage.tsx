@@ -63,8 +63,8 @@ export default function LoginPage() {
             <span className="text-lg font-bold text-navy">Inventory</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-navy">Admin Sign In</h2>
-          <p className="mt-2 text-sm text-navy-secondary">Sign in with your administrator account</p>
+          <h2 className="text-2xl font-bold text-navy">Sign In</h2>
+          <p className="mt-2 text-sm text-navy-secondary">Sign in with your account</p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             {error && <div className="alert-error">{error}</div>}

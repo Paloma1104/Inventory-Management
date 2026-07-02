@@ -1,15 +1,37 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+<<<<<<< HEAD
 from app.database import Base, engine
 from app.routers import audit_logs, auth, dashboard, products, transactions, users, chatbot
+=======
+from app.database import get_database_url_display, init_db, is_database_available
+from app.routers import audit_logs, auth, dashboard, products, transactions, users
+>>>>>>> a08bec2bb85eeb9ac956ea006dcda3cba0a87db0
 
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.database_startup_error = None
+
+    try:
+        init_db()
+    except RuntimeError as exc:
+        app.state.database_startup_error = str(exc)
+        logger.error("%s", exc)
+
+    yield
 
 app = FastAPI(
     title="Inventory Management System",
     description="Full-stack inventory management with RBAC",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -36,5 +58,15 @@ app.include_router(dashboard.router, prefix="/api")
 
 @app.get("/api/health")
 def health_check():
+<<<<<<< HEAD
     return {"status": "ok"}
 app.include_router(chatbot.router)
+=======
+    database_available = is_database_available()
+    return {
+        "status": "ok" if database_available else "degraded",
+        "database": "ok" if database_available else "unavailable",
+        "database_url": get_database_url_display(),
+        "startup_error": getattr(app.state, "database_startup_error", None),
+    }
+>>>>>>> a08bec2bb85eeb9ac956ea006dcda3cba0a87db0
