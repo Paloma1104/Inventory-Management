@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Pencil, Package, Eye } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
-import { productsApi, categoriesApi } from '../services/api';
+import { productsApi, categoriesApi, aiApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Product, Category } from '../types';
 
@@ -15,6 +15,7 @@ const emptyProduct = {
   sku: '',
   description: '',
   price: 0,
+  currency: 'USD',
   current_quantity: 0,
   minimum_stock_level: 10,
 };
@@ -34,12 +35,44 @@ export default function ProductsPage() {
   const [form, setForm] = useState(emptyProduct);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [demands, setDemands] = useState<Record<number, number>>({});
+  const [sortBy, setSortBy] = useState<'demand_desc' | 'demand_asc' | 'name_asc' | 'name_desc' | 'qty_desc' | 'qty_asc'>('demand_desc');
+  const [isCreatingNewCategory, setIsCreatingNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const generateRandomSKU = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const randomLetters = Array.from({ length: 3 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    const randomDigits = Math.floor(100 + Math.random() * 900);
+    const sku = `IOT-${randomLetters}-${randomDigits}`;
+    setForm(prev => ({ ...prev, sku }));
+  };
+
+  const getCurrencySymbol = (currency?: string) => {
+    switch (currency?.toUpperCase()) {
+      case 'INR': return '₹';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      default: return '$';
+    }
+  };
 
   const fetchData = () => {
-    Promise.all([productsApi.list(), categoriesApi.list()])
-      .then(([productsRes, categoriesRes]) => {
+    Promise.all([
+      productsApi.list(),
+      categoriesApi.list(),
+      aiApi.getPredictions().catch(() => ({ data: [] }))
+    ])
+      .then(([productsRes, categoriesRes, predictionsRes]) => {
         setProducts(productsRes.data);
         setCategories(categoriesRes.data);
+        const demandMap: Record<number, number> = {};
+        if (predictionsRes && predictionsRes.data) {
+          predictionsRes.data.forEach((p) => {
+            demandMap[p.product_id] = p.predicted_30_day_demand;
+          });
+        }
+        setDemands(demandMap);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -57,9 +90,28 @@ export default function ProductsPage() {
     { field: (p) => p.status || 'in_stock', value: statusFilter },
   ]);
 
+  const sortedProducts = useMemo(() => {
+    const sorted = [...filteredProducts];
+    sorted.sort((a, b) => {
+      const demandA = demands[a.product_id] || 0;
+      const demandB = demands[b.product_id] || 0;
+
+      if (sortBy === 'demand_desc') return demandB - demandA;
+      if (sortBy === 'demand_asc') return demandA - demandB;
+      if (sortBy === 'name_asc') return a.product_name.localeCompare(b.product_name);
+      if (sortBy === 'name_desc') return b.product_name.localeCompare(a.product_name);
+      if (sortBy === 'qty_desc') return b.current_quantity - a.current_quantity;
+      if (sortBy === 'qty_asc') return a.current_quantity - b.current_quantity;
+      return 0;
+    });
+    return sorted;
+  }, [filteredProducts, demands, sortBy]);
+
   const openCreate = () => {
     setEditProduct(null);
     setForm({ ...emptyProduct, category_id: categories[0]?.category_id || 0 });
+    setIsCreatingNewCategory(false);
+    setNewCategoryName('');
     setError('');
     setShowModal(true);
   };
@@ -72,9 +124,12 @@ export default function ProductsPage() {
       sku: product.sku,
       description: product.description,
       price: product.price,
+      currency: product.currency || 'USD',
       current_quantity: product.current_quantity,
       minimum_stock_level: product.minimum_stock_level,
     });
+    setIsCreatingNewCategory(false);
+    setNewCategoryName('');
     setError('');
     setShowModal(true);
   };
@@ -89,15 +144,40 @@ export default function ProductsPage() {
     setError('');
     setSubmitting(true);
     try {
+      let finalCategoryId = form.category_id;
+      if (isCreatingNewCategory) {
+        if (!newCategoryName.trim()) {
+          throw new Error('Please enter a new category name');
+        }
+        const existing = categories.find(
+          (c) => c.category_name.toLowerCase() === newCategoryName.trim().toLowerCase()
+        );
+        if (existing) {
+          finalCategoryId = existing.category_id;
+        } else {
+          const catRes = await categoriesApi.create(newCategoryName.trim());
+          finalCategoryId = catRes.data.category_id;
+        }
+      }
+
+      const payload = {
+        ...form,
+        category_id: finalCategoryId,
+      };
+
       if (editProduct) {
-        await productsApi.update(editProduct.product_id, form);
+        await productsApi.update(editProduct.product_id, payload);
       } else {
-        await productsApi.create(form);
+        await productsApi.create(payload);
       }
       setShowModal(false);
+      setIsCreatingNewCategory(false);
+      setNewCategoryName('');
       fetchData();
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const message = (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail 
+        || (err as Error)?.message 
+        || 'Operation failed';
       setError(typeof message === 'string' ? message : 'Operation failed');
     } finally {
       setSubmitting(false);
@@ -149,6 +229,14 @@ export default function ProductsPage() {
           <option value="low_stock">Low Stock</option>
           <option value="out_of_stock">Out of Stock</option>
         </select>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="input-field w-auto">
+          <option value="demand_desc">Sort: Demand (High to Low)</option>
+          <option value="demand_asc">Sort: Demand (Low to High)</option>
+          <option value="name_asc">Sort: Name (A-Z)</option>
+          <option value="name_desc">Sort: Name (Z-A)</option>
+          <option value="qty_desc">Sort: Quantity (High to Low)</option>
+          <option value="qty_asc">Sort: Quantity (Low to High)</option>
+        </select>
       </SearchFilterBar>
 
       <div className="card overflow-hidden !p-0">
@@ -163,42 +251,48 @@ export default function ProductsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="table-header border-b border-surface-border">
-                <tr className="text-xs font-medium uppercase tracking-wider text-navy-secondary">
+                <tr className="text-xs font-semibold uppercase tracking-wider text-navy-secondary">
                   <th className="px-6 py-3">Product Name</th>
                   <th className="px-6 py-3">Category</th>
-                  <th className="px-6 py-3">SKU</th>
-                  <th className="px-6 py-3">Price</th>
+                  {isAdmin && (
+                    <>
+                      <th className="px-6 py-3">SKU</th>
+                      <th className="px-6 py-3">Price</th>
+                    </>
+                  )}
                   <th className="px-6 py-3">Quantity</th>
                   <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  {isAdmin && <th className="px-6 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {filteredProducts.map((product) => (
+                {sortedProducts.map((product) => (
                   <tr key={product.product_id} className="table-row">
                     <td className="px-6 py-4 font-medium text-navy">{product.product_name}</td>
                     <td className="px-6 py-4 text-navy-secondary">{product.category_name}</td>
-                    <td className="px-6 py-4 font-mono text-xs text-navy-secondary">{product.sku}</td>
-                    <td className="px-6 py-4 text-navy-secondary">${product.price.toFixed(2)}</td>
+                    {isAdmin && (
+                      <>
+                        <td className="px-6 py-4 font-mono text-xs text-navy-secondary">{product.sku}</td>
+                        <td className="px-6 py-4 text-navy-secondary">{getCurrencySymbol(product.currency)}{product.price.toFixed(2)}</td>
+                      </>
+                    )}
                     <td className="px-6 py-4 font-medium text-navy">{product.current_quantity}</td>
                     <td className="px-6 py-4"><Badge status={product.status || 'in_stock'} /></td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openDetails(product)} title="View Details" className="icon-btn">
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        {isAdmin && (
-                          <>
-                            <button onClick={() => openEdit(product)} className="icon-btn">
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button onClick={() => handleDelete(product)} className="icon-btn-warning">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openDetails(product)} title="View Details" className="icon-btn">
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => openEdit(product)} className="icon-btn">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDelete(product)} className="icon-btn-warning">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -217,19 +311,74 @@ export default function ProductsPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-navy-secondary">SKU</label>
-              <input required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="input-field" />
+              <div className="flex gap-2">
+                <input required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })} className="input-field flex-1 font-mono uppercase" placeholder="e.g. IOT-SEN-123" />
+                <button
+                  type="button"
+                  onClick={generateRandomSKU}
+                  className="btn-secondary text-xs px-3.5 font-medium whitespace-nowrap"
+                >
+                  Generate SKU
+                </button>
+              </div>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Category</label>
-              <select required value={form.category_id} onChange={(e) => setForm({ ...form, category_id: Number(e.target.value) })} className="input-field">
-                {categories.map((cat) => (
-                  <option key={cat.category_id} value={cat.category_id}>{cat.category_name}</option>
-                ))}
-              </select>
+              {!isCreatingNewCategory ? (
+                <select 
+                  required 
+                  value={form.category_id} 
+                  onChange={(e) => {
+                    if (e.target.value === 'new') {
+                      setIsCreatingNewCategory(true);
+                    } else {
+                      setForm({ ...form, category_id: Number(e.target.value) });
+                    }
+                  }} 
+                  className="input-field"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.category_id} value={cat.category_id}>{cat.category_name}</option>
+                  ))}
+                  <option value="new">+ Add a new category...</option>
+                </select>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    required
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="New category name..."
+                    className="input-field flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingNewCategory(false);
+                      setForm({ ...form, category_id: categories[0]?.category_id || 0 });
+                    }}
+                    className="btn-secondary px-3"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Price</label>
-              <input required type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} className="input-field" />
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Price</label>
+                <input required type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} className="input-field no-spinners" />
+              </div>
+              <div className="col-span-1">
+                <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Currency</label>
+                <select required value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className="input-field">
+                  <option value="USD">USD ($)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Current Quantity</label>
@@ -261,7 +410,7 @@ export default function ProductsPage() {
               <div><p className="text-xs font-medium text-navy-secondary">SKU</p><p className="mt-1 font-mono text-sm text-navy">{viewProduct.sku}</p></div>
               <div><p className="text-xs font-medium text-navy-secondary">Category</p><p className="mt-1 text-sm text-navy">{viewProduct.category_name}</p></div>
               <div><p className="text-xs font-medium text-navy-secondary">Status</p><div className="mt-1"><Badge status={viewProduct.status || 'in_stock'} /></div></div>
-              <div><p className="text-xs font-medium text-navy-secondary">Price</p><p className="mt-1 text-sm text-navy">${viewProduct.price.toFixed(2)}</p></div>
+              <div><p className="text-xs font-medium text-navy-secondary">Price</p><p className="mt-1 text-sm text-navy">{getCurrencySymbol(viewProduct.currency)}{viewProduct.price.toFixed(2)}</p></div>
               <div><p className="text-xs font-medium text-navy-secondary">Quantity</p><p className="mt-1 text-sm text-navy">{viewProduct.current_quantity}</p></div>
               <div><p className="text-xs font-medium text-navy-secondary">Minimum Stock</p><p className="mt-1 text-sm text-navy">{viewProduct.minimum_stock_level}</p></div>
               <div><p className="text-xs font-medium text-navy-secondary">Last Updated</p><p className="mt-1 text-sm text-navy">{new Date(viewProduct.updated_at).toLocaleString()}</p></div>

@@ -77,6 +77,17 @@ export default function UsersPage() {
     }
   };
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailRegex.test(form.email);
+
+  const isPasswordMinLength = form.password.length >= 8;
+  const isPasswordUppercase = /[A-Z]/.test(form.password);
+  const isPasswordNumber = /[0-9]/.test(form.password);
+  const isPasswordSpecial = /[^A-Za-z0-9]/.test(form.password);
+  const isPasswordValid = isPasswordMinLength && isPasswordUppercase && isPasswordNumber && isPasswordSpecial;
+
+  const isFormValid = form.name.trim() !== '' && isEmailValid && (editUser ? true : isPasswordValid);
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -165,11 +176,52 @@ export default function UsersPage() {
           <div>
             <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Email</label>
             <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field" />
+            {form.email && (
+              <p className={`mt-1.5 text-xs font-medium flex items-center gap-1.5 ${isEmailValid ? 'text-green-600' : 'text-accent-dark'}`}>
+                {isEmailValid ? (
+                  <>
+                    <span className="text-sm">✓</span> Valid email format
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm">⚠</span> Invalid email format (e.g. name@domain.com)
+                  </>
+                )}
+              </p>
+            )}
           </div>
           {!editUser && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-navy-secondary">Password</label>
-              <input required type="password" minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input-field" />
+              <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input-field" />
+              
+              <div className="mt-2.5 rounded-lg border border-surface-border bg-[#F7FAFC] p-3 space-y-1.5 text-xs text-navy-secondary">
+                <p className="font-semibold text-navy mb-1 text-[10px] uppercase tracking-wider">Password Requirements:</p>
+                <div className="flex items-center gap-1.5 transition-colors duration-150">
+                  <span className={`text-sm ${isPasswordMinLength ? 'text-green-600' : 'text-navy-secondary/50'}`}>
+                    {isPasswordMinLength ? '✓' : '○'}
+                  </span>
+                  <span className={isPasswordMinLength ? 'text-green-700 font-medium' : ''}>At least 8 characters</span>
+                </div>
+                <div className="flex items-center gap-1.5 transition-colors duration-150">
+                  <span className={`text-sm ${isPasswordUppercase ? 'text-green-600' : 'text-navy-secondary/50'}`}>
+                    {isPasswordUppercase ? '✓' : '○'}
+                  </span>
+                  <span className={isPasswordUppercase ? 'text-green-700 font-medium' : ''}>At least one uppercase letter</span>
+                </div>
+                <div className="flex items-center gap-1.5 transition-colors duration-150">
+                  <span className={`text-sm ${isPasswordNumber ? 'text-green-600' : 'text-navy-secondary/50'}`}>
+                    {isPasswordNumber ? '✓' : '○'}
+                  </span>
+                  <span className={isPasswordNumber ? 'text-green-700 font-medium' : ''}>At least one number</span>
+                </div>
+                <div className="flex items-center gap-1.5 transition-colors duration-150">
+                  <span className={`text-sm ${isPasswordSpecial ? 'text-green-600' : 'text-navy-secondary/50'}`}>
+                    {isPasswordSpecial ? '✓' : '○'}
+                  </span>
+                  <span className={isPasswordSpecial ? 'text-green-700 font-medium' : ''}>At least one special character</span>
+                </div>
+              </div>
             </div>
           )}
           <div>
@@ -181,7 +233,7 @@ export default function UsersPage() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={submitting} className="btn-primary">
+            <button type="submit" disabled={submitting || !isFormValid} className="btn-primary">
               {submitting ? 'Saving...' : editUser ? 'Update User' : 'Create User'}
             </button>
           </div>

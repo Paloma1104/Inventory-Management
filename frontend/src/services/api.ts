@@ -58,6 +58,8 @@ export const usersApi = {
     api.post<User>('/users/', data),
   update: (id: number, data: Partial<User>) => api.put<User>(`/users/${id}`, data),
   delete: (id: number, hard: boolean = false) => api.delete(`/users/${id}?hard=${hard}`),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    api.post<{ message: string }>('/users/change-password', data),
 };
 
 export const productsApi = {

@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Boxes, ArrowDownToLine, ArrowUpFromLine, Plus } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import SearchFilterBar, { useFilteredList } from '../components/SearchFilterBar';
-import { productsApi, categoriesApi, transactionsApi, productRequestsApi } from '../services/api';
+import { productsApi, categoriesApi, transactionsApi, productRequestsApi, aiApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Product, Category } from '../types';
 import logo from '../assets/blucursor-logo.png';
@@ -26,6 +26,8 @@ export default function InventoryPage() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestProduct, setRequestProduct] = useState<Product | null>(null);
   const [requestForm, setRequestForm] = useState({ product_name: '', category_id: '', quantity: 1, remarks: '' });
+  const [demands, setDemands] = useState<Record<number, number>>({});
+  const [sortBy, setSortBy] = useState<'demand_desc' | 'demand_asc' | 'name_asc' | 'name_desc' | 'qty_desc' | 'qty_asc'>('demand_desc');
 
   const openRequestModal = (product: Product | null) => {
     setRequestProduct(product);
@@ -70,10 +72,21 @@ export default function InventoryPage() {
   };
 
   const fetchData = () => {
-    Promise.all([productsApi.list(), categoriesApi.list()])
-      .then(([productsRes, categoriesRes]) => {
+    Promise.all([
+      productsApi.list(),
+      categoriesApi.list(),
+      aiApi.getPredictions().catch(() => ({ data: [] }))
+    ])
+      .then(([productsRes, categoriesRes, predictionsRes]) => {
         setProducts(productsRes.data);
         setCategories(categoriesRes.data);
+        const demandMap: Record<number, number> = {};
+        if (predictionsRes && predictionsRes.data) {
+          predictionsRes.data.forEach((p) => {
+            demandMap[p.product_id] = p.predicted_30_day_demand;
+          });
+        }
+        setDemands(demandMap);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -90,6 +103,23 @@ export default function InventoryPage() {
     { field: (p) => p.category_name || '', value: categoryFilter },
     { field: (p) => p.status || 'in_stock', value: statusFilter },
   ]);
+
+  const sortedProducts = useMemo(() => {
+    const sorted = [...filteredProducts];
+    sorted.sort((a, b) => {
+      const demandA = demands[a.product_id] || 0;
+      const demandB = demands[b.product_id] || 0;
+
+      if (sortBy === 'demand_desc') return demandB - demandA;
+      if (sortBy === 'demand_asc') return demandA - demandB;
+      if (sortBy === 'name_asc') return a.product_name.localeCompare(b.product_name);
+      if (sortBy === 'name_desc') return b.product_name.localeCompare(a.product_name);
+      if (sortBy === 'qty_desc') return b.current_quantity - a.current_quantity;
+      if (sortBy === 'qty_asc') return a.current_quantity - b.current_quantity;
+      return 0;
+    });
+    return sorted;
+  }, [filteredProducts, demands, sortBy]);
 
   const openStock = (product: Product, type: 'stock_in' | 'stock_out') => {
     setStockProduct(product);
@@ -154,6 +184,14 @@ export default function InventoryPage() {
           <option value="low_stock">Low Stock</option>
           <option value="out_of_stock">Out of Stock</option>
         </select>
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="input-field w-auto">
+          <option value="demand_desc">Sort: Demand (High to Low)</option>
+          <option value="demand_asc">Sort: Demand (Low to High)</option>
+          <option value="name_asc">Sort: Name (A-Z)</option>
+          <option value="name_desc">Sort: Name (Z-A)</option>
+          <option value="qty_desc">Sort: Quantity (High to Low)</option>
+          <option value="qty_asc">Sort: Quantity (Low to High)</option>
+        </select>
         {!isAdmin && (
           <button onClick={() => openRequestModal(null)} className="btn-primary flex items-center gap-1.5 py-2 px-4 text-sm font-medium">
             <Plus className="h-4 w-4" /> Request Product
@@ -175,24 +213,24 @@ export default function InventoryPage() {
                 <tr className="text-xs font-semibold uppercase tracking-wider text-navy-secondary">
                   <th className="px-6 py-3">Product Name</th>
                   <th className="px-6 py-3">Category</th>
-                  <th className="px-6 py-3">SKU</th>
+                  {isAdmin && <th className="px-6 py-3">SKU</th>}
                   <th className="px-6 py-3">Quantity</th>
-                  <th className="px-6 py-3">Min Level</th>
+                  {isAdmin && <th className="px-6 py-3">Min Level</th>}
                   <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  {isAdmin && <th className="px-6 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {filteredProducts.map((product) => (
+                {sortedProducts.map((product) => (
                   <tr key={product.product_id} className="table-row">
                     <td className="px-6 py-4 font-medium text-navy">{product.product_name}</td>
                     <td className="px-6 py-4 text-navy-secondary">{product.category_name}</td>
-                    <td className="px-6 py-4 font-mono text-xs text-navy-secondary">{product.sku}</td>
+                    {isAdmin && <td className="px-6 py-4 font-mono text-xs text-navy-secondary">{product.sku}</td>}
                     <td className="px-6 py-4 font-medium text-navy">{product.current_quantity}</td>
-                    <td className="px-6 py-4 text-navy-secondary">{product.minimum_stock_level}</td>
+                    {isAdmin && <td className="px-6 py-4 text-navy-secondary">{product.minimum_stock_level}</td>}
                     <td className="px-6 py-4"><Badge status={product.status || 'in_stock'} /></td>
-                    <td className="px-6 py-4 text-right">
-                      {isAdmin ? (
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openStock(product, 'stock_in')} title="Stock In" className="icon-btn">
                             <ArrowDownToLine className="h-4 w-4" />
@@ -201,16 +239,8 @@ export default function InventoryPage() {
                             <ArrowUpFromLine className="h-4 w-4" />
                           </button>
                         </div>
-                      ) : (
-                        (product.status === 'low_stock' || product.status === 'out_of_stock') ? (
-                          <button onClick={() => openRequestModal(product)} className="btn-secondary py-1 px-3 text-xs" title="Request Restock">
-                            Request Restock
-                          </button>
-                        ) : (
-                          <span className="text-xs text-navy-secondary/60">-</span>
-                        )
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

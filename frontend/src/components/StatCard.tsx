@@ -24,7 +24,7 @@ const valueColorMap = {
 
 export default function StatCard({ title, value, icon: Icon, trend, color = 'primary' }: StatCardProps) {
   return (
-    <div className="card">
+    <div className="card hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-navy-secondary">{title}</p>

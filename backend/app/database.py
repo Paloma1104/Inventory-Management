@@ -40,6 +40,11 @@ def init_db() -> None:
                 conn.commit()
             except Exception:
                 pass
+            try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN currency VARCHAR(10) NOT NULL DEFAULT 'USD'"))
+                conn.commit()
+            except Exception:
+                pass
     except SQLAlchemyError as exc:
         raise RuntimeError(get_database_unavailable_message()) from exc
 

@@ -4,11 +4,35 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.auth import get_current_user, require_admin
 from app.models import User, InventoryTransaction, AuditLog, ProductRequest
-from app.schemas import UserCreate, UserResponse, UserUpdate
+from app.schemas import UserCreate, UserResponse, UserUpdate, PasswordChange
 from app.services.audit import create_audit_log
-from app.utils.auth import get_password_hash
+from app.utils.auth import get_password_hash, verify_password
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+def change_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect current password",
+        )
+
+    current_user.password_hash = get_password_hash(data.new_password)
+
+    create_audit_log(
+        db,
+        current_user.user_id,
+        "Password Changed",
+        f"User '{current_user.name}' updated their password securely"
+    )
+    db.commit()
+    return {"message": "Password updated successfully"}
 
 
 @router.get("/", response_model=list[UserResponse])

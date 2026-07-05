@@ -13,7 +13,7 @@ import InventoryPage from './pages/InventoryPage';
 import TransactionsPage from './pages/TransactionsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
-import LowStockPage from './pages/LowStockPage';
+import PredictiveRunwaysPage from './pages/PredictiveRunwaysPage';
 import SettingsPage from './pages/SettingsPage';
 import ChatbotPage from './pages/ChatbotPage';
 function RootRedirect() {
@@ -43,7 +43,7 @@ export default function App() {
                 <Route path="/transactions" element={<TransactionsPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/audit-logs" element={<AuditLogsPage />} />
-                <Route path="/low-stock" element={<LowStockPage />} />
+                <Route path="/predictive-runways" element={<PredictiveRunwaysPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>

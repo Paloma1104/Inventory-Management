@@ -58,6 +58,11 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+class PasswordChange(BaseModel):
+    current_password: str = Field(..., min_length=6)
+    new_password: str = Field(..., min_length=6)
+
+
 # Categories
 class CategoryBase(BaseModel):
     category_name: str = Field(..., min_length=1, max_length=100)
@@ -81,6 +86,7 @@ class ProductBase(BaseModel):
     sku: str = Field(..., min_length=1, max_length=50)
     description: str = ""
     price: float = Field(..., ge=0)
+    currency: str = "USD"
     current_quantity: int = Field(0, ge=0)
     minimum_stock_level: int = Field(10, ge=0)
 
@@ -95,6 +101,7 @@ class ProductUpdate(BaseModel):
     sku: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = None
     price: Optional[float] = Field(None, ge=0)
+    currency: Optional[str] = None
     current_quantity: Optional[int] = Field(None, ge=0)
     minimum_stock_level: Optional[int] = Field(None, ge=0)
 

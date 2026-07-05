@@ -27,6 +27,7 @@ def _to_product_response(product: Product) -> ProductResponse:
         sku=product.sku,
         description=product.description,
         price=product.price,
+        currency=product.currency,
         current_quantity=product.current_quantity,
         minimum_stock_level=product.minimum_stock_level,
         status=_product_status(product),

@@ -96,10 +96,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-navy-secondary">
-            Don't have an account?{' '}
-            <Link to="/register" className="link-primary">Create account</Link>
-          </p>
+          {/* Registration link removed by request */}
         </div>
       </div>
     </div>

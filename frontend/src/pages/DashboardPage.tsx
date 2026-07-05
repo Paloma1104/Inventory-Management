@@ -1,21 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Users, AlertTriangle, ArrowLeftRight, UserPlus, Plus, Eye, Boxes, Search, Check, X } from 'lucide-react';
+import {
+  Package, Users, AlertTriangle, ArrowLeftRight, UserPlus, Plus, Eye, Boxes,
+  Search, Check, X, TrendingDown, Activity
+} from 'lucide-react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
 import StatCard from '../components/StatCard';
 import PageHeader from '../components/PageHeader';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { dashboardApi, productRequestsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import type { DashboardStats, ProductRequest } from '../types';
+import { colors } from '../theme/colors';
+import type { DashboardStats, ProductRequest, Analytics } from '../types';
 import logo from '../assets/blucursor-logo.png';
 
 export default function DashboardPage() {
   const { isAdmin } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<ProductRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
+
+  // Interactive control states
+  const [chartMetric, setChartMetric] = useState<'all' | 'in' | 'out'>('all');
+  const [visibleWidgets, setVisibleWidgets] = useState({
+    requests: true,
+    transactions: true,
+    chart: true,
+  });
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<'all' | 'stock_in' | 'stock_out'>('all');
 
   // Resolution states (Admin only)
   const [showResolveModal, setShowResolveModal] = useState(false);
@@ -35,8 +52,14 @@ export default function DashboardPage() {
   };
 
   const fetchStats = () => {
-    dashboardApi.stats()
-      .then(({ data }) => setStats(data))
+    Promise.all([
+      dashboardApi.stats(),
+      dashboardApi.analytics(),
+    ])
+      .then(([{ data: statsData }, { data: analyticsData }]) => {
+        setStats(statsData);
+        setAnalytics(analyticsData);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -79,6 +102,12 @@ export default function DashboardPage() {
       setSubmitting(false);
     }
   };
+
+  const filteredTransactions = useMemo(() => {
+    const txns = stats?.recent_transactions ?? [];
+    if (transactionTypeFilter === 'all') return txns;
+    return txns.filter(t => t.transaction_type === transactionTypeFilter);
+  }, [stats?.recent_transactions, transactionTypeFilter]);
 
   if (loading) {
     return (
@@ -190,6 +219,12 @@ export default function DashboardPage() {
 
   const pendingRequests = requests.filter(r => r.status === 'pending');
 
+  const monthlyChartData = analytics?.monthly_changes.map((m) => ({
+    name: m.month,
+    'Stock In': m.stock_in,
+    'Stock Out': m.stock_out,
+  })) || [];
+
   return (
     <div>
       <PageHeader
@@ -209,11 +244,148 @@ export default function DashboardPage() {
         <StatCard title="Recent Transactions" value={stats?.recent_transactions?.length ?? 0} icon={ArrowLeftRight} color="navy" />
       </div>
 
+      {/* Interactive Controls & Customizer */}
+      <div className="mb-6 card bg-white border border-surface-border hover:shadow-md transition-all duration-300">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-lg bg-primary-light p-2 text-primary">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-navy">Interactive Controls</h3>
+              <p className="text-xs text-navy-secondary">Toggle sections and metrics in real-time</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold text-navy-secondary uppercase tracking-wider">Show Widgets:</span>
+            <button
+              onClick={() => setVisibleWidgets(prev => ({ ...prev, chart: !prev.chart }))}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
+                visibleWidgets.chart
+                  ? 'bg-primary text-white border-primary shadow-sm hover:bg-primary-dark'
+                  : 'bg-white text-navy-secondary border-surface-border hover:bg-surface-muted'
+              }`}
+            >
+              Activity Flow Chart
+            </button>
+            <button
+              onClick={() => setVisibleWidgets(prev => ({ ...prev, requests: !prev.requests }))}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
+                visibleWidgets.requests
+                  ? 'bg-primary text-white border-primary shadow-sm hover:bg-primary-dark'
+                  : 'bg-white text-navy-secondary border-surface-border hover:bg-surface-muted'
+              }`}
+            >
+              Pending Requests
+            </button>
+            <button
+              onClick={() => setVisibleWidgets(prev => ({ ...prev, transactions: !prev.transactions }))}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
+                visibleWidgets.transactions
+                  ? 'bg-primary text-white border-primary shadow-sm hover:bg-primary-dark'
+                  : 'bg-white text-navy-secondary border-surface-border hover:bg-surface-muted'
+              }`}
+            >
+              Recent Transactions
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Inventory Flow Chart */}
+      {visibleWidgets.chart && (
+        <div className="mb-8 card hover:shadow-md transition-all duration-300">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-surface-border pb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-navy">Inventory Activity Flow</h3>
+              <p className="text-xs text-navy-secondary mt-0.5">Interactive visual flow of stock inflow and outflow</p>
+            </div>
+            <div className="flex items-center gap-1.5 bg-[#F7FAFC] rounded-lg p-1 border border-surface-border">
+              <button
+                onClick={() => setChartMetric('all')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                  chartMetric === 'all'
+                    ? 'bg-white text-navy font-semibold shadow-sm'
+                    : 'text-navy-secondary hover:text-navy'
+                }`}
+              >
+                Combined
+              </button>
+              <button
+                onClick={() => setChartMetric('in')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                  chartMetric === 'in'
+                    ? 'bg-white text-navy font-semibold shadow-sm'
+                    : 'text-navy-secondary hover:text-navy'
+                }`}
+              >
+                Inflow Only
+              </button>
+              <button
+                onClick={() => setChartMetric('out')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                  chartMetric === 'out'
+                    ? 'bg-white text-navy font-semibold shadow-sm'
+                    : 'text-navy-secondary hover:text-navy'
+                }`}
+              >
+                Outflow Only
+              </button>
+            </div>
+          </div>
+
+          {monthlyChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={monthlyChartData}>
+                <defs>
+                  <linearGradient id="colorStockIn" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={colors.primary} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={colors.primary} stopOpacity={0.0}/>
+                  </linearGradient>
+                  <linearGradient id="colorStockOut" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={colors.accent} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={colors.accent} stopOpacity={0.0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: colors.navySecondary }} />
+                <YAxis tick={{ fontSize: 12, fill: colors.navySecondary }} />
+                <Tooltip />
+                <Legend />
+                {(chartMetric === 'all' || chartMetric === 'in') && (
+                  <Area
+                    type="monotone"
+                    dataKey="Stock In"
+                    stroke={colors.primary}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorStockIn)"
+                  />
+                )}
+                {(chartMetric === 'all' || chartMetric === 'out') && (
+                  <Area
+                    type="monotone"
+                    dataKey="Stock Out"
+                    stroke={colors.accent}
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorStockOut)"
+                  />
+                )}
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="py-16 text-center text-sm text-navy-secondary">No monthly transaction data available yet</p>
+          )}
+        </div>
+      )}
+
+      {/* Quick Actions */}
       <div className="mb-8">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-navy-secondary">Quick Actions</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {isAdmin && (
-            <Link to="/users" className="quick-action-card">
+            <Link to="/users" className="quick-action-card hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
               <div className="rounded-lg bg-primary-light p-3 text-primary transition group-hover:bg-primary group-hover:text-white">
                 <UserPlus className="h-5 w-5" />
               </div>
@@ -223,7 +395,7 @@ export default function DashboardPage() {
               </div>
             </Link>
           )}
-          <Link to="/products" className="quick-action-card">
+          <Link to="/products" className="quick-action-card hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
             <div className="rounded-lg bg-secondary-light p-3 text-secondary transition group-hover:bg-secondary group-hover:text-white">
               <Plus className="h-5 w-5" />
             </div>
@@ -232,7 +404,7 @@ export default function DashboardPage() {
               <p className="text-xs text-navy-secondary">Manage product catalog</p>
             </div>
           </Link>
-          <Link to="/inventory" className="quick-action-card">
+          <Link to="/inventory" className="quick-action-card hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
             <div className="rounded-lg bg-primary-light p-3 text-primary transition group-hover:bg-primary group-hover:text-white">
               <Eye className="h-5 w-5" />
             </div>
@@ -241,118 +413,140 @@ export default function DashboardPage() {
               <p className="text-xs text-navy-secondary">Stock in and stock out</p>
             </div>
           </Link>
-          <Link to="/low-stock" className="quick-action-card">
+          <Link to="/predictive-runways" className="quick-action-card hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300">
             <div className="rounded-lg bg-accent-light p-3 text-accent transition group-hover:bg-accent group-hover:text-white">
-              <AlertTriangle className="h-5 w-5" />
+              <TrendingDown className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-medium text-navy">Low Stock Alerts</p>
-              <p className="text-xs text-navy-secondary">Review stock warnings</p>
+              <p className="font-medium text-navy">Predictive Runways</p>
+              <p className="text-xs text-navy-secondary">Review AI stock runway predictions</p>
             </div>
           </Link>
         </div>
       </div>
 
       {/* Pending Product Requests (Admin) */}
-      <div className="card mb-8">
-        <h2 className="mb-4 text-lg font-semibold text-navy">Pending Product Requests</h2>
-        {requestsLoading ? (
-          <div className="flex h-32 items-center justify-center">
-            <div className="spinner" />
-          </div>
-        ) : pendingRequests.length === 0 ? (
-          <p className="py-8 text-center text-sm text-navy-secondary">No pending product requests.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-surface-border text-xs font-semibold uppercase tracking-wider text-navy-secondary">
-                  <th className="pb-3 pr-4">Product Name</th>
-                  <th className="pb-3 pr-4">Category</th>
-                  <th className="pb-3 pr-4">Quantity</th>
-                  <th className="pb-3 pr-4">Requested By</th>
-                  <th className="pb-3 pr-4">User Notes</th>
-                  <th className="pb-3 pr-4">Requested At</th>
-                  <th className="pb-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border">
-                {pendingRequests.map((req) => (
-                  <tr key={req.request_id} className="text-navy-secondary hover:bg-primary-light/10">
-                    <td className="py-3 pr-4 font-medium text-navy">
-                      {req.product_name}
-                      {req.product_id ? (
-                        <span className="ml-1.5 inline-flex items-center rounded bg-gray-50 px-1.5 py-0.5 text-2xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                          Restock
-                        </span>
-                      ) : (
-                        <span className="ml-1.5 inline-flex items-center rounded bg-secondary-light px-1.5 py-0.5 text-2xs font-medium text-secondary ring-1 ring-inset ring-secondary/20">
-                          New Item
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 pr-4">{req.category_name || '-'}</td>
-                    <td className="py-3 pr-4">{req.quantity}</td>
-                    <td className="py-3 pr-4">{req.user_name}</td>
-                    <td className="py-3 pr-4 italic text-sm">{req.remarks || <span className="text-navy-secondary/40">-</span>}</td>
-                    <td className="py-3 pr-4 text-navy-secondary/80">{new Date(req.created_at).toLocaleDateString()}</td>
-                    <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleResolveOpen(req, 'approved')}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary-light text-primary hover:bg-primary hover:text-white transition"
-                          title="Approve Request"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleResolveOpen(req, 'rejected')}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition"
-                          title="Reject Request"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+      {visibleWidgets.requests && (
+        <div className="card mb-8 hover:shadow-md transition-all duration-300">
+          <h2 className="mb-4 text-lg font-semibold text-navy">Pending Product Requests</h2>
+          {requestsLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <div className="spinner" />
+            </div>
+          ) : pendingRequests.length === 0 ? (
+            <p className="py-8 text-center text-sm text-navy-secondary">No pending product requests.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-surface-border text-xs font-semibold uppercase tracking-wider text-navy-secondary">
+                    <th className="pb-3 pr-4">Product Name</th>
+                    <th className="pb-3 pr-4">Category</th>
+                    <th className="pb-3 pr-4">Quantity</th>
+                    <th className="pb-3 pr-4">Requested By</th>
+                    <th className="pb-3 pr-4">User Notes</th>
+                    <th className="pb-3 pr-4">Requested At</th>
+                    <th className="pb-3 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {pendingRequests.map((req) => (
+                    <tr key={req.request_id} className="text-navy-secondary hover:bg-primary-light/10">
+                      <td className="py-3 pr-4 font-medium text-navy">
+                        {req.product_name}
+                        {req.product_id ? (
+                          <span className="ml-1.5 inline-flex items-center rounded bg-gray-50 px-1.5 py-0.5 text-2xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                            Restock
+                          </span>
+                        ) : (
+                          <span className="ml-1.5 inline-flex items-center rounded bg-secondary-light px-1.5 py-0.5 text-2xs font-medium text-secondary ring-1 ring-inset ring-secondary/20">
+                            New Item
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-4">{req.category_name || '-'}</td>
+                      <td className="py-3 pr-4">{req.quantity}</td>
+                      <td className="py-3 pr-4">{req.user_name}</td>
+                      <td className="py-3 pr-4 italic text-sm">{req.remarks || <span className="text-navy-secondary/40">-</span>}</td>
+                      <td className="py-3 pr-4 text-navy-secondary/80">{new Date(req.created_at).toLocaleDateString()}</td>
+                      <td className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleResolveOpen(req, 'approved')}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary-light text-primary hover:bg-primary hover:text-white transition"
+                            title="Approve Request"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleResolveOpen(req, 'rejected')}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition"
+                            title="Reject Request"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="card">
-        <h2 className="mb-4 text-lg font-semibold text-navy">Recent Transactions</h2>
-        {stats?.recent_transactions && stats.recent_transactions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-surface-border text-xs font-semibold uppercase tracking-wider text-navy-secondary">
-                  <th className="pb-3 pr-4">Product</th>
-                  <th className="pb-3 pr-4">Type</th>
-                  <th className="pb-3 pr-4">Quantity</th>
-                  <th className="pb-3 pr-4">User</th>
-                  <th className="pb-3">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border">
-                {stats.recent_transactions.map((txn) => (
-                  <tr key={txn.transaction_id} className="text-navy-secondary">
-                    <td className="py-3 pr-4 font-medium text-navy">{txn.product_name}</td>
-                    <td className="py-3 pr-4"><Badge status={txn.transaction_type} /></td>
-                    <td className="py-3 pr-4">{txn.quantity}</td>
-                    <td className="py-3 pr-4">{txn.user_name}</td>
-                    <td className="py-3 text-navy-secondary/80">{new Date(txn.created_at).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Recent Transactions */}
+      {visibleWidgets.transactions && (
+        <div className="card mb-8 hover:shadow-md transition-all duration-300">
+          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold text-navy">Recent Transactions</h2>
+            
+            {/* Interactive Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-navy-secondary font-medium">Filter Type:</span>
+              <select
+                value={transactionTypeFilter}
+                onChange={(e) => setTransactionTypeFilter(e.target.value as any)}
+                className="rounded-lg border border-surface-border bg-white px-2.5 py-1.5 text-xs font-semibold text-navy shadow-sm focus:border-primary focus:outline-none"
+              >
+                <option value="all">All Transactions</option>
+                <option value="stock_in">Stock In Only</option>
+                <option value="stock_out">Stock Out Only</option>
+              </select>
+            </div>
           </div>
-        ) : (
-          <p className="py-8 text-center text-sm text-navy-secondary">No transactions yet</p>
-        )}
-      </div>
+
+          {filteredTransactions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-surface-border text-xs font-semibold uppercase tracking-wider text-navy-secondary">
+                    <th className="pb-3 pr-4">Product</th>
+                    <th className="pb-3 pr-4">Type</th>
+                    <th className="pb-3 pr-4">Quantity</th>
+                    <th className="pb-3 pr-4">User</th>
+                    <th className="pb-3">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {filteredTransactions.map((txn) => (
+                    <tr key={txn.transaction_id} className="text-navy-secondary">
+                      <td className="py-3 pr-4 font-medium text-navy">{txn.product_name}</td>
+                      <td className="py-3 pr-4"><Badge status={txn.transaction_type} /></td>
+                      <td className="py-3 pr-4">{txn.quantity}</td>
+                      <td className="py-3 pr-4">{txn.user_name}</td>
+                      <td className="py-3 text-navy-secondary/80">{new Date(txn.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-navy-secondary">No matching transactions found</p>
+          )}
+        </div>
+      )}
 
       {/* Resolve Request Modal (Admin only) */}
       <Modal

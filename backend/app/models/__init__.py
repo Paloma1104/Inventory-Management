@@ -51,6 +51,7 @@ class Product(Base):
     sku = Column(String(50), unique=True, nullable=False)
     description = Column(Text, default="")
     price = Column(Float, nullable=False, default=0.0)
+    currency = Column(String(10), default="USD", nullable=False)
     current_quantity = Column(Integer, default=0, nullable=False)
     minimum_stock_level = Column(Integer, default=10, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

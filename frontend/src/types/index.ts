@@ -22,6 +22,7 @@ export interface Product {
   sku: string;
   description: string;
   price: number;
+  currency?: string;
   current_quantity: number;
   minimum_stock_level: number;
   status?: string;
