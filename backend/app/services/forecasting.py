@@ -10,7 +10,6 @@ def calculate_stock_predictions(db: Session) -> list[dict]:
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     
     for product in products:
-        # Query total quantity of STOCK_OUT transactions in the last 30 days
         stock_out_sum = (
             db.query(func.sum(InventoryTransaction.quantity))
             .filter(
@@ -21,16 +20,15 @@ def calculate_stock_predictions(db: Session) -> list[dict]:
             .scalar()
         ) or 0
         
-        # Calculate daily velocity
+        
         if stock_out_sum > 0:
             daily_velocity = float(stock_out_sum) / 30.0
         else:
-            # Deterministic fallback daily velocity based on product id so seed data has realistic forecasts
             daily_velocity = float((product.product_id % 4 + 1) * 0.4)
             
         predicted_demand = round(daily_velocity * 30)
         
-        # Calculate runway and status
+       
         if daily_velocity == 0:
             runway_days = 0.0
             if product.current_quantity > 0:
@@ -50,7 +48,7 @@ def calculate_stock_predictions(db: Session) -> list[dict]:
             else:
                 runway_status = "OK (30+ Days)"
         
-        # 1. Lead Time Calculator
+        
         stock_in_txns_with_ordered = (
             db.query(InventoryTransaction)
             .filter(
@@ -71,7 +69,7 @@ def calculate_stock_predictions(db: Session) -> list[dict]:
         else:
             avg_lead_time_days = 0
             
-        # 2. Order Cycle Analyzer
+        
         all_stock_in_txns = (
             db.query(InventoryTransaction)
             .filter(
@@ -98,7 +96,7 @@ def calculate_stock_predictions(db: Session) -> list[dict]:
         else:
             order_cycle = "Variable Demand"
             
-        # 3. Recommended Reorder Window days
+        
         recommended_reorder_window_days = int(round(runway_days - avg_lead_time_days))
                 
         predictions.append({

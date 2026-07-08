@@ -1,65 +1,70 @@
+import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import declarative_base, sessionmaker
-
 from app.config import settings
 
-connect_args = {}
-if settings.DATABASE_URL.startswith(("mysql://", "mysql+pymysql://")):
-    connect_args["connect_timeout"] = 5
-
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    connect_args=connect_args,
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+logger = logging.getLogger(__name__)
 Base = declarative_base()
 
+class DatabaseManager:
+    def __init__(self):
+        self._engines = {}
+        self._session_factories = {}
+        
+        self.connect_args = {}
+        if settings.DATABASE_URL.startswith(("mysql://", "mysql+pymysql://")):
+            self.connect_args["connect_timeout"] = 5
 
-def get_database_url_display() -> str:
-    return make_url(settings.DATABASE_URL).render_as_string(hide_password=True)
+        self.register_database("default", settings.DATABASE_URL)
+
+    def register_database(self, name: str, database_url: str):
+        try:
+            engine = create_engine(
+                database_url,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                pool_size=15,
+                max_overflow=10,
+                connect_args=self.connect_args,
+            )
+            self._engines[name] = engine
+            self._session_factories[name] = sessionmaker(
+                autocommit=False, autoflush=False, bind=engine
+            )
+            logger.info(f"Successfully registered database connection: '{name}'")
+        except Exception as e:
+            logger.error(f"Failed to register database '{name}': {e}")
+            raise e
+
+    def get_session(self, name: str = "default"):
+        if name not in self._session_factories:
+            raise ValueError(f"Database connection '{name}' has not been registered.")
+        return self._session_factories[name]()
+
+    def verify_health(self, name: str = "default") -> bool:
+        if name not in self._engines:
+            return False
+        try:
+            with self._engines[name].connect() as connection:
+                connection.execute(text("SELECT 1"))
+            return True
+        except SQLAlchemyError as exc:
+            logger.error(f"Health check failed for database '{name}': {exc}")
+            return False
+
+    def get_safe_url(self, name: str = "default") -> str:
+        if name not in self._engines:
+            return "Unknown Connection Target"
+        return make_url(self._engines[name].url).render_as_string(hide_password=True)
 
 
-def get_database_unavailable_message() -> str:
-    return (
-        f"Could not connect to the database at {get_database_url_display()}. "
-        "Start MySQL with `docker compose up -d` from the project root, "
-        "verify backend/.env DATABASE_URL, then restart the backend."
-    )
-
-
-def init_db() -> None:
-    try:
-        Base.metadata.create_all(bind=engine)
-        with engine.connect() as conn:
-            try:
-                conn.execute(text("ALTER TABLE inventory_transactions ADD COLUMN ordered_at DATETIME NULL"))
-                conn.commit()
-            except Exception:
-                pass
-            try:
-                conn.execute(text("ALTER TABLE products ADD COLUMN currency VARCHAR(10) NOT NULL DEFAULT 'USD'"))
-                conn.commit()
-            except Exception:
-                pass
-    except SQLAlchemyError as exc:
-        raise RuntimeError(get_database_unavailable_message()) from exc
-
-
-def is_database_available() -> bool:
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-        return True
-    except SQLAlchemyError:
-        return False
+db_manager = DatabaseManager()
 
 
 def get_db():
-    db = SessionLocal()
+    db = db_manager.get_session("default")
     try:
         yield db
     finally:
