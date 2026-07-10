@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { chatbotApi } from '../services/api';
 
 const suggestedQuestions = [
   "How many products are in stock?",
@@ -12,26 +13,33 @@ export default function ChatbotPage() {
   const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const sendMessage = async (question?: string) => {
+    if (loading) return; // Prevent duplicate requests
     const msg = question || input;
     if (!msg.trim()) return;
+    
+    setError(null);
     const userMessage = { role: 'user', text: msg };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
-    const token = localStorage.getItem('token');
-    const res = await fetch('http://localhost:8000/api/chatbot/chat', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ message: msg }),
-    });
-    const data = await res.json();
-    setMessages(prev => [...prev, { role: 'bot', text: data.response }]);
-    setLoading(false);
+
+    try {
+      const { data } = await chatbotApi.chat(msg);
+      setMessages(prev => [...prev, { role: 'bot', text: data.response }]);
+    } catch (err: unknown) {
+      console.error(err);
+      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const friendlyMessage = typeof message === 'string' 
+        ? message 
+        : "Failed to connect to the chatbot service. Please ensure the backend is running and try again.";
+      setError(friendlyMessage);
+      setMessages(prev => [...prev, { role: 'bot', text: "Error: Could not retrieve a response." }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -44,13 +52,20 @@ export default function ChatbotPage() {
         {suggestedQuestions.map((q, i) => (
           <button
             key={i}
+            disabled={loading}
             onClick={() => sendMessage(q)}
-            className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-full text-sm hover:bg-blue-100 transition"
+            className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-full text-sm hover:bg-blue-100 transition disabled:opacity-50"
           >
             {q}
           </button>
         ))}
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 border border-red-200">
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* Chat Box */}
       <div className="bg-white rounded-lg shadow p-4 h-80 overflow-y-auto mb-4">
@@ -78,11 +93,13 @@ export default function ChatbotPage() {
           placeholder="Ask..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+          disabled={loading}
         />
         <button
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
           onClick={() => sendMessage()}
+          disabled={loading}
         >
           Send
         </button>

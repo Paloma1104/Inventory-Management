@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend,
@@ -14,18 +14,35 @@ export default function AnalyticsPage() {
   const [predictions, setPredictions] = useState<StockRunwayPrediction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
-      dashboardApi.analytics(),
-      aiApi.getPredictions(),
-    ])
-      .then(([{ data: analyticsData }, { data: predictionsData }]) => {
-        setAnalytics(analyticsData);
-        setPredictions(predictionsData);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAnalytics = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [analyticsRes, predictionsRes] = await Promise.all([
+        dashboardApi.analytics(),
+        aiApi.getPredictions(),
+      ]);
+      if (active) {
+        setAnalytics(analyticsRes.data);
+        setPredictions(predictionsRes.data);
+      }
+    } catch (err) {
+      console.error(err);
+      if (active) setError('Failed to load analytics and prediction data. Please ensure the server is online.');
+    } finally {
+      if (active) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchAnalytics(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
@@ -45,6 +62,12 @@ export default function AnalyticsPage() {
   return (
     <div>
       <PageHeader title="Analytics" description="Inventory insights and activity overview" />
+
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* Prominently featured first: Low Stock Products and Monthly Inventory Changes side-by-side */}
       <div className="mb-8 grid gap-6 lg:grid-cols-2">

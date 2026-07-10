@@ -11,12 +11,29 @@ export default function PredictiveRunwaysPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
-    aiApi.getPredictions()
-      .then(({ data }) => setPredictions(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPredictions = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await aiApi.getPredictions();
+      if (active) setPredictions(data);
+    } catch (err) {
+      console.error(err);
+      if (active) setError('Failed to load predictive runway data. Please ensure the server is online.');
+    } finally {
+      if (active) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchPredictions(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchPredictions]);
 
   const searchFields = useCallback(
     (p: StockRunwayPrediction) => [p.product_name, p.stock_runway_status],
@@ -64,6 +81,12 @@ export default function PredictiveRunwaysPage() {
         title="Predictive Stock Runaways"
         description="AI-powered 30-day velocity forecasting and reorder recommendations based on consumption trends."
       />
+
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="mb-6 grid gap-6 sm:grid-cols-3">

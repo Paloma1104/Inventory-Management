@@ -57,13 +57,18 @@ export default function ProductsPage() {
     }
   };
 
-  const fetchData = () => {
-    Promise.all([
-      productsApi.list(),
-      categoriesApi.list(),
-      aiApi.getPredictions().catch(() => ({ data: [] }))
-    ])
-      .then(([productsRes, categoriesRes, predictionsRes]) => {
+  const [listError, setListError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setListError(null);
+    try {
+      const [productsRes, categoriesRes, predictionsRes] = await Promise.all([
+        productsApi.list(),
+        categoriesApi.list(),
+        aiApi.getPredictions().catch(() => ({ data: [] }))
+      ]);
+      if (active) {
         setProducts(productsRes.data);
         setCategories(categoriesRes.data);
         const demandMap: Record<number, number> = {};
@@ -73,12 +78,22 @@ export default function ProductsPage() {
           });
         }
         setDemands(demandMap);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+      }
+    } catch (err) {
+      console.error(err);
+      if (active) setListError('Failed to load products or categories. Please ensure the server is online.');
+    } finally {
+      if (active) setLoading(false);
+    }
+  }, [categories]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetchData(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchData]);
 
   const searchFields = useCallback(
     (p: Product) => [p.product_name, p.sku, p.category_name || '', p.description],
@@ -173,7 +188,7 @@ export default function ProductsPage() {
       setShowModal(false);
       setIsCreatingNewCategory(false);
       setNewCategoryName('');
-      fetchData();
+      fetchData(true);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail 
         || (err as Error)?.message 
@@ -188,7 +203,7 @@ export default function ProductsPage() {
     if (!confirm(`Delete product "${product.product_name}"?`)) return;
     try {
       await productsApi.delete(product.product_id);
-      fetchData();
+      fetchData(true);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       alert(typeof message === 'string' ? message : 'Delete failed');
@@ -215,6 +230,12 @@ export default function ProductsPage() {
           </button>
         ) : undefined}
       />
+
+      {listError && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {listError}
+        </div>
+      )}
 
       <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by name, SKU, or description...">
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input-field w-auto">

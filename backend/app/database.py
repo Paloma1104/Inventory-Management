@@ -63,6 +63,21 @@ class DatabaseManager:
 db_manager = DatabaseManager()
 
 
+def SessionLocal():
+    return db_manager.get_session("default")
+
+
+def init_db():
+    import app.models  # Ensure models are loaded and registered on Base
+    engine = db_manager._engines.get("default")
+    if engine is None:
+        raise RuntimeError("Database engine not registered.")
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        raise RuntimeError(f"Database initialization failed: {exc}") from exc
+
+
 def get_db():
     db = db_manager.get_session("default")
     try:

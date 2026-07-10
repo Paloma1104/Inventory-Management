@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { UserPlus, Trash2, Pencil, AlertTriangle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
@@ -20,14 +20,29 @@ export default function UsersPage() {
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
 
-  const fetchUsers = () => {
-    usersApi.list()
-      .then(({ data }) => setUsers(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const [listError, setListError] = useState<string | null>(null);
 
-  useEffect(() => { fetchUsers(); }, []);
+  const fetchUsers = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setListError(null);
+    try {
+      const { data } = await usersApi.list();
+      if (active) setUsers(data);
+    } catch (err) {
+      console.error(err);
+      if (active) setListError('Failed to load users list. Please check if the backend is online.');
+    } finally {
+      if (active) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchUsers(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchUsers]);
 
   const openCreate = () => {
     setEditUser(null);
@@ -55,7 +70,7 @@ export default function UsersPage() {
         await usersApi.create(form);
       }
       setShowModal(false);
-      fetchUsers();
+      fetchUsers(true);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(typeof message === 'string' ? message : 'Operation failed');
@@ -68,7 +83,7 @@ export default function UsersPage() {
     if (!actionUser) return;
     try {
       await usersApi.delete(actionUser.user_id, hard);
-      fetchUsers();
+      fetchUsers(true);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       alert(typeof message === 'string' ? message : `${hard ? 'Delete' : 'Deactivate'} failed`);
@@ -108,6 +123,12 @@ export default function UsersPage() {
           </button>
         }
       />
+
+      {listError && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {listError}
+        </div>
+      )}
 
       <div className="card overflow-hidden !p-0">
         {users.length === 0 ? (

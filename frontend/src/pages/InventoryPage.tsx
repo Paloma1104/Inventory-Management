@@ -71,13 +71,18 @@ export default function InventoryPage() {
     }
   };
 
-  const fetchData = () => {
-    Promise.all([
-      productsApi.list(),
-      categoriesApi.list(),
-      aiApi.getPredictions().catch(() => ({ data: [] }))
-    ])
-      .then(([productsRes, categoriesRes, predictionsRes]) => {
+  const [listError, setListError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setListError(null);
+    try {
+      const [productsRes, categoriesRes, predictionsRes] = await Promise.all([
+        productsApi.list(),
+        categoriesApi.list(),
+        aiApi.getPredictions().catch(() => ({ data: [] }))
+      ]);
+      if (active) {
         setProducts(productsRes.data);
         setCategories(categoriesRes.data);
         const demandMap: Record<number, number> = {};
@@ -87,12 +92,22 @@ export default function InventoryPage() {
           });
         }
         setDemands(demandMap);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+      }
+    } catch (err) {
+      console.error(err);
+      if (active) setListError('Failed to load inventory data. Please try again later.');
+    } finally {
+      if (active) setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetchData(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchData]);
 
   const searchFields = useCallback(
     (p: Product) => [p.product_name, p.sku, p.category_name || ''],
@@ -142,7 +157,7 @@ export default function InventoryPage() {
         ordered_at: stockForm.transaction_type === 'stock_in' && stockForm.ordered_at ? new Date(stockForm.ordered_at).toISOString() : undefined,
       });
       setShowStockModal(false);
-      fetchData();
+      fetchData(true);
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(typeof message === 'string' ? message : 'Stock update failed');
@@ -170,6 +185,12 @@ export default function InventoryPage() {
         }
         description="Manage stock levels with stock in and stock out operations"
       />
+
+      {listError && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {listError}
+        </div>
+      )}
 
       <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search inventory...">
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input-field w-auto">

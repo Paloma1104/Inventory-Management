@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal, init_db
-from app.models import AuditLog, Category, InventoryTransaction, Product, User, UserRole
+from app.models import AuditLog, Category, InventoryTransaction, Product, User, UserRole, ProductRequest
 from app.utils.auth import get_password_hash
 
 IOT_CATEGORIES = [
@@ -106,6 +106,7 @@ def reset_admin_password(db):
 def seed_inventory(db):
     db.query(InventoryTransaction).delete()
     db.query(AuditLog).filter(AuditLog.product_id.isnot(None)).delete()
+    db.query(ProductRequest).delete()
     db.query(Product).delete()
     db.query(Category).delete()
     db.flush()

@@ -27,12 +27,29 @@ export default function AuditLogsPage() {
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('');
 
-  useEffect(() => {
-    auditLogsApi.list()
-      .then(({ data }) => setLogs(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLogs = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await auditLogsApi.list();
+      if (active) setLogs(data);
+    } catch (err) {
+      console.error(err);
+      if (active) setError('Failed to load audit logs. Please verify connection to the server.');
+    } finally {
+      if (active) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchLogs(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchLogs]);
 
   const searchFields = useCallback(
     (log: AuditLog) => [log.user_name, log.action, log.product_name || '', log.details],
@@ -56,6 +73,12 @@ export default function AuditLogsPage() {
   return (
     <div>
       <PageHeader title="Audit Logs" description="User activity, product changes, and inventory updates" />
+
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {error}
+        </div>
+      )}
 
       <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search logs by user, action, or details...">
         <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="input-field w-auto">

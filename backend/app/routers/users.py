@@ -1,5 +1,7 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import get_db
 from app.dependencies.auth import get_current_user, require_admin
@@ -8,7 +10,9 @@ from app.schemas import UserCreate, UserResponse, UserUpdate, PasswordChange
 from app.services.audit import create_audit_log
 from app.utils.auth import get_password_hash, verify_password
 
-router = APIRouter(prefix="/users", tags=["Users"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["Users"])
 
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
@@ -23,15 +27,24 @@ def change_password(
             detail="Incorrect current password",
         )
 
-    current_user.password_hash = get_password_hash(data.new_password)
+    try:
+        current_user.password_hash = get_password_hash(data.new_password)
 
-    create_audit_log(
-        db,
-        current_user.user_id,
-        "Password Changed",
-        f"User '{current_user.name}' updated their password securely"
-    )
-    db.commit()
+        create_audit_log(
+            db,
+            current_user.user_id,
+            "Password Changed",
+            f"User '{current_user.name}' updated their password securely"
+        )
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Database error occurred while changing password")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update password due to a database error."
+        )
+
     return {"message": "Password updated successfully"}
 
 
@@ -40,50 +53,80 @@ def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    return db.query(User).filter(User.status == "active").order_by(User.created_at.desc()).all()
+    try:
+        return db.query(User).filter(User.status == "active").order_by(User.created_at.desc()).all()
+    except SQLAlchemyError as exc:
+        logger.exception("Database error occurred while querying users")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load users list due to a database error."
+        )
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(data: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    existing_user = db.query(User).filter(User.email == data.email).first()
+    try:
+        existing_user = db.query(User).filter(User.email == data.email).first()
+    except SQLAlchemyError as exc:
+        logger.exception("Database error occurred while looking up existing user")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error. Please try again later."
+        )
     
     if existing_user:
         if existing_user.status == "active":
             raise HTTPException(status_code=400, detail="Email already exists and account is active")
         
-        existing_user.name = data.name
-        existing_user.password_hash = get_password_hash(data.password)
-        existing_user.role = data.role
-        existing_user.status = "active"
+        try:
+            existing_user.name = data.name
+            existing_user.password_hash = get_password_hash(data.password)
+            existing_user.role = data.role
+            existing_user.status = "active"
+            
+            create_audit_log(
+                db, 
+                current_user.user_id, 
+                "User Reactivated", 
+                f"Reactivated existing inactive account for '{data.name}' ({data.email}) with role {data.role.value}"
+            )
+            db.commit()
+            db.refresh(existing_user)
+            return existing_user
+        except SQLAlchemyError as exc:
+            db.rollback()
+            logger.exception("Database error occurred while reactivating user")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to reactivate user due to a database error."
+            )
+
+    try:
+        user = User(
+            name=data.name,
+            email=data.email,
+            password_hash=get_password_hash(data.password),
+            role=data.role,
+            status="active"
+        )
+        db.add(user)
         
         create_audit_log(
             db, 
             current_user.user_id, 
-            "User Reactivated", 
-            f"Reactivated existing inactive account for '{data.name}' ({data.email}) with role {data.role.value}"
+            "User Created", 
+            f"Created a brand new user '{data.name}' with role {data.role.value}"
         )
         db.commit()
-        db.refresh(existing_user)
-        return existing_user
-
-    user = User(
-        name=data.name,
-        email=data.email,
-        password_hash=get_password_hash(data.password),
-        role=data.role,
-        status="active"
-    )
-    db.add(user)
-    
-    create_audit_log(
-        db, 
-        current_user.user_id, 
-        "User Created", 
-        f"Created a brand new user '{data.name}' with role {data.role.value}"
-    )
-    db.commit()
-    db.refresh(user)
-    return user
+        db.refresh(user)
+        return user
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Database error occurred while creating user")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create user due to a database error."
+        )
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -93,30 +136,53 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    user = db.query(User).filter(User.user_id == user_id).first()
+    try:
+        user = db.query(User).filter(User.user_id == user_id).first()
+    except SQLAlchemyError as exc:
+        logger.exception("Database error occurred while retrieving user for update")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error. Please try again later."
+        )
+        
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     update_data = data.model_dump(exclude_unset=True)
     if "email" in update_data:
-        existing = db.query(User).filter(
-            User.email == update_data["email"], User.user_id != user_id
-        ).first()
+        try:
+            existing = db.query(User).filter(
+                User.email == update_data["email"], User.user_id != user_id
+            ).first()
+        except SQLAlchemyError as exc:
+            logger.exception("Database error occurred while validating unique email constraint")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection error. Please try again later."
+            )
         if existing:
             raise HTTPException(status_code=400, detail="Email already exists")
 
-    for field, value in update_data.items():
-        setattr(user, field, value)
+    try:
+        for field, value in update_data.items():
+            setattr(user, field, value)
 
-    create_audit_log(
-        db,
-        current_user.user_id,
-        "User Updated",
-        f"Updated user '{user.name}'",
-    )
-    db.commit()
-    db.refresh(user)
-    return user
+        create_audit_log(
+            db,
+            current_user.user_id,
+            "User Updated",
+            f"Updated user '{user.name}'",
+        )
+        db.commit()
+        db.refresh(user)
+        return user
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Database error occurred while updating user info")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user due to a database error."
+        )
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -129,33 +195,59 @@ def delete_user(
     if user_id == current_user.user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
         
-    user = db.query(User).filter(User.user_id == user_id).first()
+    try:
+        user = db.query(User).filter(User.user_id == user_id).first()
+    except SQLAlchemyError as exc:
+        logger.exception("Database error occurred while retrieving user for deletion")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error. Please try again later."
+        )
+        
     if not user: 
         raise HTTPException(status_code=404, detail="User not found")
     
     if hard:
-        db.query(InventoryTransaction).filter(InventoryTransaction.user_id == user_id).delete(synchronize_session=False)
-        db.query(ProductRequest).filter(ProductRequest.user_id == user_id).delete(synchronize_session=False)
-        db.query(AuditLog).filter(AuditLog.user_id == user_id).delete(synchronize_session=False)
-        
-        db.delete(user)
-        db.commit()
-        
-        create_audit_log(
-            db, 
-            current_user.user_id, 
-            "User Purged", 
-            f"HARD DELETED user '{user.name}' ({user.email}) and purged all related activity records."
-        )
-        db.commit()
+        try:
+            user_name = user.name
+            user_email = user.email
+            db.query(InventoryTransaction).filter(InventoryTransaction.user_id == user_id).delete(synchronize_session=False)
+            db.query(ProductRequest).filter(ProductRequest.user_id == user_id).delete(synchronize_session=False)
+            db.query(AuditLog).filter(AuditLog.user_id == user_id).delete(synchronize_session=False)
+            
+            db.delete(user)
+            db.commit()
+            
+            create_audit_log(
+                db, 
+                current_user.user_id, 
+                "User Purged", 
+                f"HARD DELETED user '{user_name}' ({user_email}) and purged all related activity records."
+            )
+            db.commit()
+        except SQLAlchemyError as exc:
+            db.rollback()
+            logger.exception("Database error occurred during hard delete of user")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to purge user data due to a database error."
+            )
     else:
-        user.status = "inactive"
-        create_audit_log(
-            db, 
-            current_user.user_id, 
-            "User Deactivated", 
-            f"Soft-deleted/Deactivated user '{user.name}' ({user.email})."
-        )
-        db.commit()
+        try:
+            user.status = "inactive"
+            create_audit_log(
+                db, 
+                current_user.user_id, 
+                "User Deactivated", 
+                f"Soft-deleted/Deactivated user '{user.name}' ({user.email})."
+            )
+            db.commit()
+        except SQLAlchemyError as exc:
+            db.rollback()
+            logger.exception("Database error occurred while soft deleting user")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to deactivate user due to a database error."
+            )
         
     return None

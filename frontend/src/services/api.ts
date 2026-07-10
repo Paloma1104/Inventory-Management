@@ -108,5 +108,9 @@ export const aiApi = {
   getPredictions: () => api.get<StockRunwayPrediction[]>('/ai/all-predictions'),
 };
 
+export const chatbotApi = {
+  chat: (message: string) => api.post<{ response: string }>('/chatbot/', { message }),
+};
+
 export default api;
 

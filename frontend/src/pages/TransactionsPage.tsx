@@ -13,12 +13,29 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
-  useEffect(() => {
-    transactionsApi.list()
-      .then(({ data }) => setTransactions(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTransactions = useCallback(async (active: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await transactionsApi.list();
+      if (active) setTransactions(data);
+    } catch (err) {
+      console.error(err);
+      if (active) setError('Failed to load transaction history. Please verify database connection.');
+    } finally {
+      if (active) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchTransactions(active);
+    return () => {
+      active = false;
+    };
+  }, [fetchTransactions]);
 
   const searchFields = useCallback(
     (t: Transaction) => [t.product_name, t.user_name, t.remarks, t.transaction_type],
@@ -40,6 +57,12 @@ export default function TransactionsPage() {
   return (
     <div>
       <PageHeader title="Transaction History" description="All inventory stock movements and updates" />
+
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {error}
+        </div>
+      )}
 
       <SearchFilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by product, user, or remarks...">
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input-field w-auto">

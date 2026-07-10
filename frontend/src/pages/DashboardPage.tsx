@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package, Users, AlertTriangle, ArrowLeftRight, UserPlus, Plus, Eye, Boxes,
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<ProductRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Interactive control states
   const [chartMetric, setChartMetric] = useState<'all' | 'in' | 'out'>('all');
@@ -44,34 +45,51 @@ export default function DashboardPage() {
   const [resolveError, setResolveError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchRequests = () => {
-    productRequestsApi.list()
-      .then(({ data }) => setRequests(data))
-      .catch(console.error)
-      .finally(() => setRequestsLoading(false));
-  };
+  const fetchRequests = useCallback(async (active: boolean) => {
+    setRequestsLoading(true);
+    try {
+      const { data } = await productRequestsApi.list();
+      if (active) setRequests(data);
+    } catch (err) {
+      console.error(err);
+      if (active) setError('Failed to load product requests. Please check your network connection.');
+    } finally {
+      if (active) setRequestsLoading(false);
+    }
+  }, []);
 
-  const fetchStats = () => {
-    Promise.all([
-      dashboardApi.stats(),
-      dashboardApi.analytics(),
-    ])
-      .then(([{ data: statsData }, { data: analyticsData }]) => {
-        setStats(statsData);
-        setAnalytics(analyticsData);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const fetchStats = useCallback(async (active: boolean) => {
+    setLoading(true);
+    try {
+      const [statsRes, analyticsRes] = await Promise.all([
+        dashboardApi.stats(),
+        dashboardApi.analytics(),
+      ]);
+      if (active) {
+        setStats(statsRes.data);
+        setAnalytics(analyticsRes.data);
+      }
+    } catch (err) {
+      console.error(err);
+      if (active) setError('Failed to load dashboard statistics. Please ensure the backend is running.');
+    } finally {
+      if (active) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
+    let active = true;
+    setError(null);
     if (isAdmin) {
-      fetchStats();
+      fetchStats(active);
     } else {
       setLoading(false);
     }
-    fetchRequests();
-  }, [isAdmin]);
+    fetchRequests(active);
+    return () => {
+      active = false;
+    };
+  }, [isAdmin, fetchStats, fetchRequests]);
 
   const handleResolveOpen = (request: ProductRequest, status: 'approved' | 'rejected') => {
     setResolveRequest(request);
@@ -91,9 +109,9 @@ export default function DashboardPage() {
         remarks: resolveForm.remarks,
       });
       setShowResolveModal(false);
-      fetchRequests();
+      fetchRequests(true);
       if (isAdmin) {
-        fetchStats();
+        fetchStats(true);
       }
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -129,6 +147,12 @@ export default function DashboardPage() {
           }
           description="View inventory availability and search for items"
         />
+
+        {error && (
+          <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+            ⚠️ {error}
+          </div>
+        )}
 
         <div className="mb-8 grid gap-6 md:grid-cols-2">
           <Link to="/inventory" className="quick-action-card">
@@ -236,6 +260,12 @@ export default function DashboardPage() {
         }
         description="Overview of your inventory management system"
       />
+
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-800 border border-red-200">
+          ⚠️ {error}
+        </div>
+      )}
 
       <div className="mb-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Products" value={stats?.total_products ?? 0} icon={Package} color="primary" />
