@@ -1,38 +1,112 @@
 import logging
-from langchain_community.utilities import SQLDatabase
-from functools import lru_cache
-from app.config import settings
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-FALLBACK_SCHEMA = """
-Table: users
-Columns: user_id (Integer, Primary Key), name (String), email (String, Unique), password_hash (String), role (Enum: admin, user), status (String), created_at (DateTime)
 
-Table: categories
-Columns: category_id (Integer, Primary Key), category_name (String, Unique)
+class SQLQuery(BaseModel):
+    """
+    Structured output returned by Gemini for SQL generation.
+    """
 
+    sql: str = Field(
+        description="A single valid MySQL SELECT query."
+    )
+
+
+def get_database_schema(role: str) -> str:
+    """
+    Returns a static representation of the database schema based on the user's role.
+    Only exposes the tables and columns the role is authorized to see.
+    """
+    role = role.lower()
+
+    # Common tables exposed to both admins and users
+    products_schema = """
 Table: products
-Columns: product_id (Integer, Primary Key), product_name (String), category_id (Integer, ForeignKey), sku (String, Unique), description (Text), price (Float), currency (String), current_quantity (Integer), minimum_stock_level (Integer), created_at (DateTime), updated_at (DateTime)
-
-Table: inventory_transactions
-Columns: transaction_id (Integer, Primary Key), product_id (Integer, ForeignKey), user_id (Integer, ForeignKey), transaction_type (Enum: stock_in, stock_out), quantity (Integer), remarks (Text), ordered_at (DateTime), created_at (DateTime)
-
-Table: audit_logs
-Columns: log_id (Integer, Primary Key), user_id (Integer, ForeignKey), product_id (Integer, ForeignKey), action (String), details (Text), created_at (DateTime)
-
-Table: product_requests
-Columns: request_id (Integer, Primary Key), product_id (Integer, ForeignKey), product_name (String), category_id (Integer, ForeignKey), quantity (Integer), user_id (Integer, ForeignKey), status (String), remarks (Text), created_at (DateTime), updated_at (DateTime)
+Columns:
+- product_id (INT, Primary Key)
+- product_name (VARCHAR)
+- category_id (INT, Foreign Key to categories.category_id)
+- sku (VARCHAR, Unique)
+- description (TEXT)
+- price (DOUBLE)
+- currency (VARCHAR)
+- current_quantity (INT)
+- minimum_stock_level (INT)
+- created_at (DATETIME)
+- updated_at (DATETIME)
 """
 
-@lru_cache
-def get_database_schema() -> str:
-    """
-    Returns the complete database schema in a format optimized for LLMs.
-    """
-    try:
-        db = SQLDatabase.from_uri(settings.DATABASE_URL)
-        return db.get_table_info()
-    except Exception as exc:
-        logger.exception("Failed to connect or fetch database schema for chatbot, using fallback")
-        return FALLBACK_SCHEMA
+    categories_schema = """
+Table: categories
+Columns:
+- category_id (INT, Primary Key)
+- category_name (VARCHAR, Unique)
+"""
+
+    product_requests_schema = """
+Table: product_requests
+Columns:
+- request_id (INT, Primary Key)
+- product_id (INT, Foreign Key to products.product_id)
+- product_name (VARCHAR)
+- category_id (INT, Foreign Key to categories.category_id)
+- quantity (INT)
+- user_id (INT, Foreign Key to users.user_id)
+- status (VARCHAR)
+- remarks (TEXT)
+- created_at (DATETIME)
+- updated_at (DATETIME)
+"""
+
+    if role == "admin":
+        users_schema = """
+Table: users
+Columns:
+- user_id (INT, Primary Key)
+- name (VARCHAR)
+- email (VARCHAR, Unique)
+- role (ENUM: 'admin', 'user')
+- status (VARCHAR)
+- created_at (DATETIME)
+"""
+
+        inventory_transactions_schema = """
+Table: inventory_transactions
+Columns:
+- transaction_id (INT, Primary Key)
+- product_id (INT, Foreign Key to products.product_id)
+- user_id (INT, Foreign Key to users.user_id)
+- transaction_type (ENUM: 'stock_in', 'stock_out')
+- quantity (INT)
+- remarks (TEXT)
+- ordered_at (DATETIME)
+- created_at (DATETIME)
+"""
+
+        audit_logs_schema = """
+Table: audit_logs
+Columns:
+- log_id (INT, Primary Key)
+- user_id (INT, Foreign Key to users.user_id)
+- product_id (INT, Foreign Key to products.product_id)
+- action (VARCHAR)
+- details (TEXT)
+- created_at (DATETIME)
+"""
+        return "\n".join([
+            users_schema,
+            categories_schema,
+            products_schema,
+            inventory_transactions_schema,
+            audit_logs_schema,
+            product_requests_schema
+        ])
+    else:
+        # Regular user schema: only categories, products, and product_requests
+        return "\n".join([
+            categories_schema,
+            products_schema,
+            product_requests_schema
+        ])

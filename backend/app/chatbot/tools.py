@@ -1,8 +1,6 @@
-import json
 import logging
 import re
-
-from langchain.tools import tool
+import time
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -35,7 +33,6 @@ def validate_sql(sql: str) -> None:
     """
     Allows only SELECT statements.
     """
-
     sql_upper = sql.upper().strip()
 
     if not sql_upper.startswith("SELECT"):
@@ -50,7 +47,6 @@ def validate_role(sql: str, role: str, user_id: int) -> None:
     """
     Enforces role-based access control.
     """
-
     if role.lower() == "admin":
         return
 
@@ -65,72 +61,29 @@ def validate_role(sql: str, role: str, user_id: int) -> None:
 
     # Users may only access their own requests
     if "product_requests" in sql_lower:
-
         if f"user_id = {user_id}" not in sql_lower:
             raise PermissionError(
                 "Users can only access their own product requests."
             )
 
 
-def get_inventory_tool(role: str, user_id: int):
+def execute_inventory_query(sql: str, role: str, user_id: int) -> list:
     """
-    Creates a database tool bound to the authenticated user.
+    Executes a safe read-only SQL query against the inventory database.
     """
+    validate_sql(sql)
+    validate_role(sql, role, user_id)
 
-    @tool
-    def execute_inventory_query(sql: str) -> str:
-        """
-        Executes a safe read-only SQL query against the inventory database.
-        """
+    db = SessionLocal()
+    try:
+        start = time.perf_counter()
+        result = db.execute(text(sql))
+        logger.info(f"SQL execution took: {time.perf_counter() - start:.3f}s")
 
-        try:
-            validate_sql(sql)
-            validate_role(sql, role, user_id)
-        except (ValueError, PermissionError) as val_err:
-            logger.warning("Query validation failed for user %s: %s", user_id, val_err)
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": str(val_err)
-                }
-            )
-
-        db = SessionLocal()
-
-        try:
-
-            result = db.execute(text(sql))
-
-            rows = result.mappings().all()
-
-            if not rows:
-                return json.dumps(
-                    {
-                        "success": True,
-                        "rows": [],
-                        "message": "No records found.",
-                    },
-                    default=str,
-                )
-
-            return json.dumps(
-                {
-                    "success": True,
-                    "rows": rows,
-                },
-                default=str,
-            )
-
-        except Exception as e:
-            logger.exception("SQL execution failed for query: %s", sql)
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": f"Database error during execution: {str(e)}",
-                }
-            )
-
-        finally:
-            db.close()
-
-    return execute_inventory_query
+        rows = result.mappings().all()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.exception("SQL execution failed for query: %s", sql)
+        raise e
+    finally:
+        db.close()
